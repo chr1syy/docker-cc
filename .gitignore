@@ -1,0 +1,23 @@
+# Dependencies
+frontend/node_modules/
+frontend/.svelte-kit/
+frontend/build/
+
+# Go
+backend/server
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Auto Run Docs (Maestro session artifacts)
+Auto Run Docs/

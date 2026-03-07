@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  docker-cc:
+    build: .
+    ports:
+      - "9090:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      ADMIN_USER: "admin"
+      # ADMIN_PASSWORD_HASH must be set to a bcrypt hash of your admin password
+      ADMIN_PASSWORD_HASH: ""
+      ALLOW_ACTIONS: "false"
+      SESSION_SECRET: ""
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# To generate a bcrypt hash locally:
+#   go run github.com/golang/crypto/bcrypt/generate
+# or use any bcrypt tool; place the hash into ADMIN_PASSWORD_HASH in .env
