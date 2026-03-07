@@ -112,23 +112,39 @@ func (h *ContainerHandler) Inspect(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // Derive a simple state string and status line
+    stateStr := ""
+    statusStr := ""
+    if info.State != nil {
+        stateStr = strings.ToLower(info.State.Status)
+        statusStr = info.State.Status
+        if info.State.Running {
+            stateStr = "running"
+            statusStr = fmt.Sprintf("Up since %s", info.State.StartedAt)
+        } else if info.State.ExitCode != 0 {
+            statusStr = fmt.Sprintf("Exited (%d) %s", info.State.ExitCode, info.State.FinishedAt)
+        }
+    }
+
     // Build a reduced response with selected fields
     resp := map[string]interface{}{
-        "id":   info.ID,
-        "name": strings.TrimPrefix(info.Name, "/"),
-        "image": info.Config.Image,
-        "state": info.State,
+        "id":     info.ID,
+        "name":   strings.TrimPrefix(info.Name, "/"),
+        "image":  info.Config.Image,
+        "state":  stateStr,
+        "status": statusStr,
+        "created": info.Created,
         "config": map[string]interface{}{
-            "env":      redactEnv(info.Config.Env),
-            "exposed":  info.Config.ExposedPorts,
-            "cmd":      info.Config.Cmd,
-            "entrypoint": info.Config.Entrypoint,
-            "labels":   info.Config.Labels,
+            "Env":        redactEnv(info.Config.Env),
+            "Cmd":        info.Config.Cmd,
+            "Entrypoint": info.Config.Entrypoint,
+            "Labels":     info.Config.Labels,
+            "Platform":   info.Platform,
         },
         "networkSettings": info.NetworkSettings,
         "mounts":          info.Mounts,
         "restartCount":    info.RestartCount,
-        "platform":        info.Platform,
+        "ports":           info.NetworkSettings.Ports,
     }
 
     writeJSON(w, http.StatusOK, resp)

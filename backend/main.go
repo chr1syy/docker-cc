@@ -1,9 +1,12 @@
 package main
 
 import (
+    "bufio"
     "context"
     "encoding/json"
+    "fmt"
     "log"
+    "net"
     "net/http"
     "os"
     "os/signal"
@@ -148,6 +151,22 @@ type responseWriter struct {
 func (rw *responseWriter) WriteHeader(code int) {
     rw.status = code
     rw.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack implements http.Hijacker so WebSocket upgrades work through the
+// structured logger middleware.
+func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+    if hj, ok := rw.ResponseWriter.(http.Hijacker); ok {
+        return hj.Hijack()
+    }
+    return nil, nil, fmt.Errorf("underlying ResponseWriter does not support hijacking")
+}
+
+// Flush implements http.Flusher for streaming responses.
+func (rw *responseWriter) Flush() {
+    if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+        f.Flush()
+    }
 }
 
 // MaxBodySizeMiddleware limits the size of request bodies to maxBytes.

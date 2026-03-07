@@ -1,5 +1,6 @@
 <script lang="ts">
   import { auth } from '$lib/stores/auth';
+  import { goto } from '$app/navigation';
   import { onDestroy } from 'svelte';
   let username = '';
   let password = '';
@@ -10,7 +11,8 @@
 
   async function submit(e: Event) {
     e.preventDefault();
-    await auth.login(username, password);
+    const ok = await auth.login(username, password);
+    if (ok) goto('/');
   }
 </script>
 

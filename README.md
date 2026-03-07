@@ -51,7 +51,7 @@ docker compose up -d
 
 ### Development
 
-**Prerequisites:** Go 1.23+, Node.js 22+
+**Prerequisites:** Go 1.24+, Node.js 22+
 
 ```sh
 # Backend
@@ -116,7 +116,7 @@ docker-cc/
 - Security headers: `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`
 - Request body size limited to 1MB
 - Environment variables are redacted in container inspection responses
-- Docker socket mounted read-only by default
+- Docker socket access required for container management
 
 ## License
 

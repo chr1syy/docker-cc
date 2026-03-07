@@ -55,13 +55,9 @@
     const qs = new URLSearchParams(params).toString();
     try {
       const res = await fetchAPI(`/api/containers/${encodeURIComponent(containerId)}/logs?${qs}`);
-      // Expect array of {timestamp,stream,message}
-      if (Array.isArray(res)) {
-        lines.set(res.map((l:any) => ({ timestamp: l.timestamp, stream: l.stream, message: String(l.message ?? l.msg ?? l) })))
-      } else if (typeof res === 'string') {
-        // fallback: split lines
-        lines.set(res.split('\n').filter(Boolean).map(s=>({message:s})))
-      }
+      // Backend returns {lines: [...]}
+      const arr = Array.isArray(res) ? res : (res?.lines ?? []);
+      lines.set(arr.map((l:any) => ({ timestamp: l.timestamp, stream: l.stream, message: String(l.message ?? l.msg ?? l) })))
       // scroll to bottom after loading
       requestAnimationFrame(()=>{
         if (containerEl) containerEl.scrollTop = containerEl.scrollHeight;

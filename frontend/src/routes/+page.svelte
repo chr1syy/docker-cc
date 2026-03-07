@@ -108,7 +108,7 @@
                 {formatBytes($stats[c.id].network_rx_bytes)}/{formatBytes($stats[c.id].network_tx_bytes)}
               {:else}-{/if}
             </td>
-            <td>{#if c.ports}{c.ports.map(p=> (p.publicPort? `${p.publicPort}:${p.privatePort}/${p.type}` : `${p.privatePort}/${p.type}`)).join(', ')}{:else}-{/if}</td>
+            <td>{#if c.ports && c.ports.length}{c.ports.join(', ')}{:else}-{/if}</td>
             <td><a title="Logs" href={`/container/${c.id}#logs`}>📝</a></td>
             <td>
               <!-- Actions dropdown simplified to inline buttons -->

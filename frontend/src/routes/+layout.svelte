@@ -1,16 +1,25 @@
 <script lang="ts">
   import "../lib/styles/global.css";
   import MobileNav from '$lib/components/MobileNav.svelte';
+  import Toast from '$lib/components/Toast.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { auth } from '$lib/stores/auth';
+  import { stats } from '$lib/stores/stats';
   import { goto } from '$app/navigation';
 
-  let state;
-  const unsub = auth.subscribe(s => (state = s));
+  let state: any;
+  const unsub = auth.subscribe(s => {
+    state = s;
+    // Start/stop stats WebSocket based on auth state
+    if (s.isAuthenticated) {
+      stats.start();
+    } else {
+      stats.stop();
+    }
+  });
 
   onMount(async () => {
     const ok = await auth.checkAuth();
-    // If not authenticated and not already on /login, redirect
     if (!ok && location.pathname !== '/login') {
       goto('/login');
     }
@@ -19,7 +28,7 @@
     }
   });
 
-  onDestroy(() => unsub());
+  onDestroy(() => { unsub(); stats.stop(); });
 </script>
 
 <MobileNav />

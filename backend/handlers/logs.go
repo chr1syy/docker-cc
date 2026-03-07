@@ -23,7 +23,9 @@ func NewLogHandler(d *docker.Client) *LogHandler {
     return &LogHandler{dclient: d}
 }
 
-var logUpgrader = websocket.Upgrader{}
+var logUpgrader = websocket.Upgrader{
+    CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 // GET /api/containers/{id}/logs
 func (h *LogHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -135,10 +137,28 @@ func (h *LogHandler) WS(w http.ResponseWriter, r *http.Request) {
     }
     defer rc.Close()
 
+    // Read pump: detect client disconnect
+    done := make(chan struct{})
+    go func() {
+        defer close(done)
+        for {
+            if _, _, err := conn.ReadMessage(); err != nil {
+                return
+            }
+        }
+    }()
+
     // Stream lines as they arrive
     reader := make([]byte, 4096)
     partial := make([]byte, 0)
     for {
+        // Check if client disconnected
+        select {
+        case <-done:
+            return
+        default:
+        }
+
         n, err := rc.Read(reader)
         if n > 0 {
             partial = append(partial, reader[:n]...)
@@ -157,12 +177,6 @@ func (h *LogHandler) WS(w http.ResponseWriter, r *http.Request) {
                 return
             }
             _ = conn.WriteJSON(map[string]string{"error": err.Error()})
-            return
-        }
-        // check for client close (non-blocking)
-        conn.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
-        if _, _, err := conn.ReadMessage(); err != nil {
-            // assume closed
             return
         }
     }

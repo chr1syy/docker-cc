@@ -123,8 +123,8 @@ func (s *SessionManager) LoginHandler(w http.ResponseWriter, r *http.Request) {
         SameSite: http.SameSiteStrictMode,
         MaxAge:   int(s.ttl.Seconds()),
     }
-    // if not localhost use secure flag
-    if r.Host != "localhost" && r.Host != "127.0.0.1" {
+    // Only set Secure flag when behind TLS (forwarded proto or direct TLS)
+    if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
         cookie.Secure = true
     }
     http.SetCookie(w, cookie)

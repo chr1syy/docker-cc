@@ -8,14 +8,14 @@ COPY frontend/ ./
 RUN npm ci && npm run build
 
 # Backend build
-FROM golang:1.23-alpine AS backend-build
+FROM golang:1.24-alpine AS backend-build
 WORKDIR /app/backend
 COPY backend/ ./
-RUN export PATH=$PATH:/usr/local/go/bin && go build -o /app/server .
+RUN GOTOOLCHAIN=local go build -o /app/server .
 
 # Runtime image
 FROM alpine:3.20 AS runtime
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates curl
 WORKDIR /app
 COPY --from=backend-build /app/server /app/server
 COPY --from=frontend-build /app/frontend/build /app/static

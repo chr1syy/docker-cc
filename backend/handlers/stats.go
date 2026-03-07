@@ -20,7 +20,9 @@ func NewStatsHandler(d *docker.Client) *StatsHandler {
     return &StatsHandler{dclient: d}
 }
 
-var upgrader = websocket.Upgrader{}
+var upgrader = websocket.Upgrader{
+    CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 // WS streams metrics for all containers every 2 seconds.
 func (s *StatsHandler) WS(w http.ResponseWriter, r *http.Request) {
@@ -31,28 +33,34 @@ func (s *StatsHandler) WS(w http.ResponseWriter, r *http.Request) {
     }
     defer conn.Close()
 
+    // Read pump: detect client disconnect
+    done := make(chan struct{})
+    go func() {
+        defer close(done)
+        for {
+            if _, _, err := conn.ReadMessage(); err != nil {
+                return
+            }
+        }
+    }()
+
     ticker := time.NewTicker(2 * time.Second)
     defer ticker.Stop()
 
     for {
         select {
+        case <-done:
+            return
         case <-ticker.C:
-            ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+            ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
             stats, err := s.dclient.GetAllContainerStats(ctx)
             cancel()
             if err != nil {
-                // send an error message and continue
                 _ = conn.WriteJSON(map[string]string{"error": err.Error()})
                 continue
             }
             conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
             if err := conn.WriteJSON(stats); err != nil {
-                return
-            }
-        default:
-            // check for close message
-            _, _, err := conn.ReadMessage()
-            if err != nil {
                 return
             }
         }
