@@ -6,11 +6,11 @@
   import { auth } from '$lib/stores/auth';
   import { stats } from '$lib/stores/stats';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
 
   let state: any;
   const unsub = auth.subscribe(s => {
     state = s;
-    // Start/stop stats WebSocket based on auth state
     if (s.isAuthenticated) {
       stats.start();
     } else {
@@ -29,47 +29,71 @@
   });
 
   onDestroy(() => { unsub(); stats.stop(); });
+
+  $: currentPath = $page.url.pathname;
 </script>
 
 <MobileNav />
+<Toast />
 
 <div class="app-grid">
   <aside class="sidebar">
     <div class="logo">Docker CC</div>
     <nav class="nav">
-      <a href="/" class="active">Dashboard</a>
-      <a href="/logs">Logs</a>
+      <a href="/" class:active={currentPath === '/'}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <a href="/logs" class:active={currentPath === '/logs'}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Logs
+      </a>
     </nav>
-    <div class="reconnect-banner" id="reconnectBanner" style="display:none;padding:8px;background:#fff3bf;border-top:1px solid var(--border);text-align:center">Reconnecting…</div>
+    <div class="reconnect-banner" id="reconnectBanner" style="display:none;padding:8px 12px;background:var(--warning-soft);color:var(--warning);border-radius:var(--radius-sm);font-size:12px;text-align:center">
+      Reconnecting...
+    </div>
     <div class="sidebar-footer">
       {#if state && state.loading}
-        <div>Checking auth…</div>
+        <div style="color:var(--text-muted);font-size:12px">Checking auth...</div>
       {:else if state && state.isAuthenticated}
-        <div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
           <small>{state.user}</small>
           <button on:click={() => auth.logout()}>Logout</button>
         </div>
       {/if}
     </div>
-</aside>
-  
+  </aside>
+
   <main class="main">
     {#if state && state.loading}
-      <div class="center-loading">Loading…</div>
+      <div class="center-loading">
+        <div class="loading-spinner"></div>
+        <span>Loading...</span>
+      </div>
     {:else}
       <slot />
     {/if}
   </main>
 </div>
 
-
 <style>
   .center-loading {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    color: #cbd5e1;
-    font-size: 1.1rem;
+    height: 60vh;
+    gap: 16px;
+    color: var(--text-muted);
+    font-size: 13px;
   }
+  .loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>

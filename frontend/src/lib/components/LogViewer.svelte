@@ -23,7 +23,7 @@
   let ws: WebSocket | null = null;
   let containerEl: HTMLDivElement | null = null;
   const lineHeight = 20; // px
-  let viewHeight = 400;
+  let viewHeight = 600;
   let scrollTop = 0;
 
   // Virtual list derived values
@@ -126,19 +126,24 @@
 </script>
 
 <style>
-  .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px }
-  .controls select, .controls input { background:transparent; border:1px solid var(--border); padding:6px 8px; color:var(--text); border-radius:6px }
-  .log-window { height:400px; overflow:auto; background:var(--surface); border:1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size:13px; }
-  .line { display:flex; gap:8px; padding:2px 8px; align-items:flex-start; white-space:pre-wrap }
-  .ts { color:var(--muted); width:170px; flex:0 0 170px }
-  .stream { width:8px; height:8px; border-radius:50%; margin-top:6px }
+  .controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px }
+  .controls select, .controls input[type="text"], .controls input[type="datetime-local"] { background:var(--bg, #0b0e14); border:1px solid var(--border); padding:6px 10px; color:var(--text); border-radius:6px; font-size:12px }
+  .controls label { font-size:12px; color:var(--text-secondary, #94a3b8); display:flex; align-items:center; gap:4px }
+  .controls button { background:transparent; border:1px solid var(--border); color:var(--text-secondary); padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; transition:all 150ms ease }
+  .controls button:hover { background:rgba(255,255,255,0.04); color:var(--text); border-color:var(--text-muted) }
+  .log-window { height:600px; overflow:auto; background:var(--bg, #0b0e14); border:1px solid var(--border); border-radius:var(--radius-sm, 6px); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size:12px; }
+  .line { display:flex; gap:8px; padding:2px 10px; align-items:flex-start; white-space:pre-wrap }
+  .line:hover { background:rgba(255,255,255,0.02) }
+  .ts { color:var(--text-muted, #64748b); white-space:nowrap; flex-shrink:0; font-size:11px }
+  .stream { width:6px; height:6px; border-radius:50%; margin-top:6px; flex-shrink:0 }
   .stdout { background:var(--accent) }
   .stderr { background:var(--danger) }
-  mark { background: #f6e05e; color: #000; padding:0 2px; border-radius:2px }
-  .live-badge { background: rgba(59,130,246,0.12); color:var(--accent); padding:4px 8px; border-radius:999px; font-size:12px }
+  .msg { flex:1; min-width:0; word-break:break-all }
+  .live-badge { background: rgba(16,185,129,0.12); color:var(--success, #10b981); padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; animation:pulse 2s ease-in-out infinite }
+  @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.6 } }
   @media (max-width:768px) {
     .controls { gap:6px }
-    .log-window { font-size:12px }
+    .log-window { height:400px; font-size:11px }
     .ts { display:none }
   }
 </style>
@@ -157,7 +162,7 @@
       <label>Until <input type="datetime-local" bind:value={customUntil} on:change={loadOnce} /></label>
     {/if}
 
-    <input placeholder="Search" bind:value={filterText} on:keydown={(e)=>{ if (e.key==='Enter') loadOnce(); }} />
+    <input type="text" placeholder="Search logs..." bind:value={filterText} on:keydown={(e)=>{ if (e.key==='Enter') loadOnce(); }} />
     <label><input type="checkbox" bind:checked={stderrOnly} on:change={loadOnce} /> stderr only</label>
     <label>Tail
       <select bind:value={tail} on:change={loadOnce}>
