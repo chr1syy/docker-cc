@@ -20,6 +20,7 @@
   <div class="drawer">
     <a href="/" on:click={close}>Dashboard</a>
     <a href="/logs" on:click={close}>Logs</a>
+    <a href="/settings" on:click={close}>Settings</a>
     <div class="drawer-footer">
       <button class="logout-btn" on:click={() => { auth.logout(); close(); }}>Logout</button>
     </div>

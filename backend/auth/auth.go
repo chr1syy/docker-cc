@@ -22,6 +22,7 @@ type sessionData struct {
 type SessionManager struct {
     sessions sync.Map // map[string]sessionData
     ttl      time.Duration
+    totp     *TOTPManager
 }
 
 func NewSessionManager(ttl time.Duration) *SessionManager {
@@ -42,6 +43,11 @@ func NewSessionManager(ttl time.Duration) *SessionManager {
     sm := &SessionManager{ttl: ttl}
     go sm.cleanupLoop()
     return sm
+}
+
+// SetTOTP attaches a TOTPManager to enable 2FA support.
+func (s *SessionManager) SetTOTP(tm *TOTPManager) {
+    s.totp = tm
 }
 
 func (s *SessionManager) CreateSession(username string) (string, error) {

@@ -56,6 +56,19 @@ func main() {
     // SESSION_TTL can be set as a duration string (eg. "24h") or seconds
     sm := authpkg.NewSessionManager(0)
 
+    // Initialize 2FA (TOTP) support
+    dataDir := os.Getenv("DATA_DIR")
+    if dataDir == "" {
+        dataDir = "./data"
+    }
+    totpMgr, totpErr := authpkg.NewTOTPManager(dataDir)
+    if totpErr != nil {
+        log.Printf("warning: 2FA unavailable: %v", totpErr)
+    } else {
+        sm.SetTOTP(totpMgr)
+        log.Println("2FA (TOTP) support enabled")
+    }
+
     // Mount all /api routes within a single group so we can apply origin checks
     // and security headers to every API endpoint (including login/logout).
     r.Route("/api", func(r chi.Router) {
@@ -81,6 +94,7 @@ func main() {
 
         // public auth endpoints
         r.Post("/login", sm.LoginHandler)
+        r.Post("/auth/totp/verify", sm.TOTPVerifyHandler)
         r.Post("/logout", sm.LogoutHandler)
         r.Get("/auth/check", sm.CheckHandler)
 
@@ -97,6 +111,12 @@ func main() {
                 r.With(handlers.RequireActions).Post("/containers/{id}/start", ch.Start)
                 r.With(handlers.RequireActions).Post("/containers/{id}/stop", ch.Stop)
                 r.With(handlers.RequireActions).Post("/containers/{id}/restart", ch.Restart)
+
+                // 2FA management (requires active session)
+                r.Get("/auth/2fa/status", sm.TwoFAStatusHandler)
+                r.Post("/auth/2fa/setup", sm.TwoFASetupHandler)
+                r.Post("/auth/2fa/confirm", sm.TwoFAConfirmHandler)
+                r.Post("/auth/2fa/disable", sm.TwoFADisableHandler)
             })
     })
 

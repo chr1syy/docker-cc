@@ -5,6 +5,9 @@ services:
       - "9090:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - docker-cc-data:/data
+    environment:
+      - DATA_DIR=/data
     env_file:
       - .env
     restart: unless-stopped
@@ -13,3 +16,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  docker-cc-data:
