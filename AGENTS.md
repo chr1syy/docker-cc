@@ -97,6 +97,7 @@ Optional:
 - `ALLOW_ACTIONS` (default: `false`)
 - `SESSION_TTL` (default: `24h`)
 - `STATIC_DIR` (default: `./static`)
+- `DATA_DIR` (default: `./data`) - persistent data dir for 2FA secrets etc.
 
 ## Common Tasks
 
