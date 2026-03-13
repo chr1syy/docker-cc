@@ -16,22 +16,19 @@ A lightweight Docker container dashboard with a Go backend and SvelteKit fronten
 
 ### Docker (recommended)
 
-1. Generate a bcrypt password hash:
+1. Create an `app.env` file from the example:
 
 ```sh
-# Using htpasswd
-htpasswd -nbBC 10 "" your-password | cut -d: -f2
-
-# Or using Python
-python3 -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt()).decode())"
+cp app.env.example app.env
 ```
 
-2. Set your environment variables in `docker-compose.yml` under `environment:`. Bcrypt hashes contain `$` signs, so you must double them (`$$`) in the compose file:
+2. Edit `app.env` with your credentials:
 
-```yaml
-environment:
-  - ADMIN_PASSWORD_HASH=$$2a$$10$$your-hash-here
-  - SESSION_SECRET=some-random-string-here
+```env
+ADMIN_USER=admin
+ADMIN_PASSWORD=your-secure-password
+SESSION_SECRET=your-random-string  # generate with: openssl rand -hex 32
+ALLOW_ACTIONS=false
 ```
 
 3. Start the container:
@@ -40,7 +37,7 @@ environment:
 docker compose up -d
 ```
 
-5. Open `http://localhost:9090` and log in.
+4. Open `http://localhost:9090` and log in.
 
 ### Development
 
@@ -61,7 +58,8 @@ The frontend dev server proxies `/api` requests to `http://localhost:8080`.
 | Variable | Default | Description |
 |---|---|---|
 | `ADMIN_USER` | `admin` | Admin username |
-| `ADMIN_PASSWORD_HASH` | *(required)* | Bcrypt hash of the admin password |
+| `ADMIN_PASSWORD` | *(required)* | Admin password (hashed at startup) |
+| `ADMIN_PASSWORD_HASH` | | Bcrypt hash (alternative to `ADMIN_PASSWORD`, avoids `$` escaping issues in Compose) |
 | `SESSION_SECRET` | *(required)* | Random string for signing session cookies |
 | `SESSION_TTL` | `24h` | Session inactivity timeout (duration string or seconds) |
 | `ALLOW_ACTIONS` | `false` | Enable start/stop/restart container actions |

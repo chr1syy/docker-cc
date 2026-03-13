@@ -17,7 +17,7 @@ import (
     "github.com/go-chi/chi/v5/middleware"
     _ "github.com/docker/docker/client"
     _ "github.com/gorilla/websocket"
-    _ "golang.org/x/crypto/bcrypt"
+    "golang.org/x/crypto/bcrypt"
 
     "backend/docker"
     "backend/handlers"
@@ -51,6 +51,17 @@ func main() {
     lh := handlers.NewLogHandler(dclient)
     // Stats routes
     sh := handlers.NewStatsHandler(dclient)
+
+    // If ADMIN_PASSWORD is set (plaintext), hash it and set ADMIN_PASSWORD_HASH
+    // so the login handler can use it. This avoids bcrypt $ escaping issues in Docker Compose.
+    if plainPw := os.Getenv("ADMIN_PASSWORD"); plainPw != "" {
+        hash, err := bcrypt.GenerateFromPassword([]byte(plainPw), bcrypt.DefaultCost)
+        if err != nil {
+            log.Fatalf("failed to hash ADMIN_PASSWORD: %v", err)
+        }
+        os.Setenv("ADMIN_PASSWORD_HASH", string(hash))
+        log.Println("ADMIN_PASSWORD hashed and set as ADMIN_PASSWORD_HASH")
+    }
 
     // Authentication setup
     // SESSION_TTL can be set as a duration string (eg. "24h") or seconds

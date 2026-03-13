@@ -89,10 +89,11 @@ frontend/
 ### Environment Variables
 
 Required for running:
-- `ADMIN_PASSWORD_HASH` - bcrypt hash
+- `ADMIN_PASSWORD` - plaintext admin password (hashed at startup)
 - `SESSION_SECRET` - random string for session signing
 
 Optional:
+- `ADMIN_PASSWORD_HASH` - bcrypt hash (alternative to `ADMIN_PASSWORD`)
 - `ADMIN_USER` (default: `admin`)
 - `ALLOW_ACTIONS` (default: `false`)
 - `SESSION_TTL` (default: `24h`)

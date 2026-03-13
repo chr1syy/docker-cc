@@ -6,12 +6,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - docker-cc-data:/data
+    env_file:
+      - app.env
     environment:
       - DATA_DIR=/data
-      - ADMIN_USER=admin
-      - ADMIN_PASSWORD_HASH=$$2a$$10$$your-bcrypt-hash-here  # generate with: htpasswd -nbBC 10 "" your-password | cut -d: -f2
-      - SESSION_SECRET=change-me-to-a-random-string  # generate with: openssl rand -hex 32
-      - ALLOW_ACTIONS=false
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
