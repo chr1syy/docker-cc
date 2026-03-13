@@ -278,3 +278,33 @@ func (h *ContainerHandler) Restart(w http.ResponseWriter, r *http.Request) {
     }
     writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "action": "restarted", "container": name})
 }
+
+// Remove handles DELETE /api/containers/{id}
+func (h *ContainerHandler) Remove(w http.ResponseWriter, r *http.Request) {
+    if h == nil || h.d == nil {
+        writeError(w, http.StatusServiceUnavailable, "docker daemon unreachable")
+        return
+    }
+    id := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/api/containers/"))
+    if id == "" {
+        writeError(w, http.StatusBadRequest, "missing container id")
+        return
+    }
+    ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+    defer cancel()
+    info, err := h.d.InspectContainer(ctx, id)
+    if err != nil {
+        writeError(w, http.StatusNotFound, fmt.Sprintf("container not found: %v", err))
+        return
+    }
+    name := strings.TrimPrefix(info.Name, "/")
+    if info.State != nil && info.State.Running {
+        writeError(w, http.StatusConflict, "cannot remove a running container — stop it first")
+        return
+    }
+    if err := h.d.RemoveContainer(ctx, id); err != nil {
+        writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to remove container: %v", err))
+        return
+    }
+    writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "action": "removed", "container": name})
+}

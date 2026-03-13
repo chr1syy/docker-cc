@@ -1,9 +1,9 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { startContainer, stopContainer, restartContainer } from '$lib/api';
+  import { startContainer, stopContainer, restartContainer, removeContainer } from '$lib/api';
   import { pushToast } from '$lib/stores/toast';
 
-  export let action: 'start'|'stop'|'restart';
+  export let action: 'start'|'stop'|'restart'|'remove';
   export let containerId: string;
   export let containerName: string;
   export let disabled: boolean = false;
@@ -22,7 +22,8 @@
       if (action === 'start') await startContainer(containerId);
       if (action === 'stop') await stopContainer(containerId);
       if (action === 'restart') await restartContainer(containerId);
-      pushToast(`Container ${containerName} ${action}ed`, 'success');
+      if (action === 'remove') await removeContainer(containerId);
+      pushToast(`Container ${containerName} ${action === 'remove' ? 'removed' : action + 'ed'}`, 'success');
       dispatch('refresh');
     } catch (e) {
       const err = e as any;
@@ -38,7 +39,7 @@
   }
   function cancel() { confirming = false; }
 
-  $: variant = action === 'start' ? 'success' : action === 'stop' ? 'danger' : 'default';
+  $: variant = action === 'start' ? 'success' : (action === 'stop' || action === 'remove') ? 'danger' : 'default';
 </script>
 
 <button class="action-btn {variant}" on:click={confirm} disabled={disabled || loading}>
@@ -49,6 +50,8 @@
       <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
     {:else if action === 'stop'}
       <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+    {:else if action === 'remove'}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
     {:else}
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
     {/if}

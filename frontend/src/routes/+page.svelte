@@ -166,6 +166,7 @@
                   <ActionButton action="restart" containerId={c.id} containerName={c.name} on:refresh={load} />
                 {:else}
                   <ActionButton action="start" containerId={c.id} containerName={c.name} on:refresh={load} />
+                  <ActionButton action="remove" containerId={c.id} containerName={c.name} on:refresh={load} />
                 {/if}
               </div>
             </td>

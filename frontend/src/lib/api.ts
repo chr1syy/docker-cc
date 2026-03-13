@@ -35,3 +35,7 @@ export async function stopContainer(id: string) {
 export async function restartContainer(id: string) {
   return fetchAPI(`/api/containers/${encodeURIComponent(id)}/restart`, { method: 'POST' });
 }
+
+export async function removeContainer(id: string) {
+  return fetchAPI(`/api/containers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}

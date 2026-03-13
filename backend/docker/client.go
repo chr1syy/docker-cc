@@ -81,6 +81,14 @@ func (d *Client) RestartContainer(ctx context.Context, id string, timeout time.D
     return d.c.ContainerRestart(ctx, id, container.StopOptions{Timeout: &timeoutSecs})
 }
 
+// RemoveContainer removes a stopped container.
+func (d *Client) RemoveContainer(ctx context.Context, id string) error {
+    if d == nil || d.c == nil {
+        return fmt.Errorf("docker client unavailable")
+    }
+    return d.c.ContainerRemove(ctx, id, container.RemoveOptions{})
+}
+
 // LogOptions controls log retrieval behavior.
 type LogOptions struct {
     Since      string  // RFC3339 timestamp

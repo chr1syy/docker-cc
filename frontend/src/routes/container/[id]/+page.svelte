@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { getContainer } from '$lib/api';
   import type { ContainerDetail } from '$lib/types';
   import { stats } from '$lib/stores/stats';
@@ -74,6 +75,7 @@
         <ActionButton action="restart" containerId={id} containerName={detail.name} on:refresh={reload} />
       {:else}
         <ActionButton action="start" containerId={id} containerName={detail.name} on:refresh={reload} />
+        <ActionButton action="remove" containerId={id} containerName={detail.name} on:refresh={() => goto('/')} />
       {/if}
     </div>
   </div>

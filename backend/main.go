@@ -122,6 +122,7 @@ func main() {
                 r.With(handlers.RequireActions).Post("/containers/{id}/start", ch.Start)
                 r.With(handlers.RequireActions).Post("/containers/{id}/stop", ch.Stop)
                 r.With(handlers.RequireActions).Post("/containers/{id}/restart", ch.Restart)
+                r.With(handlers.RequireActions).Delete("/containers/{id}", ch.Remove)
 
                 // 2FA management (requires active session)
                 r.Get("/auth/2fa/status", sm.TwoFAStatusHandler)
