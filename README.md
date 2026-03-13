@@ -16,13 +16,7 @@ A lightweight Docker container dashboard with a Go backend and SvelteKit fronten
 
 ### Docker (recommended)
 
-1. Create a `.env` file:
-
-```sh
-cp .env.example .env
-```
-
-2. Generate a bcrypt password hash and set it in `.env`:
+1. Generate a bcrypt password hash:
 
 ```sh
 # Using htpasswd
@@ -32,16 +26,15 @@ htpasswd -nbBC 10 "" your-password | cut -d: -f2
 python3 -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt()).decode())"
 ```
 
-3. Fill in `.env`:
+2. Set your environment variables in `docker-compose.yml` under `environment:`. Bcrypt hashes contain `$` signs, so you must double them (`$$`) in the compose file:
 
-```env
-ADMIN_USER=admin
-ADMIN_PASSWORD_HASH=$2b$10$... # your bcrypt hash
-SESSION_SECRET=some-random-string-here
-ALLOW_ACTIONS=false
+```yaml
+environment:
+  - ADMIN_PASSWORD_HASH=$$2a$$10$$your-hash-here
+  - SESSION_SECRET=some-random-string-here
 ```
 
-4. Start the container:
+3. Start the container:
 
 ```sh
 docker compose up -d
