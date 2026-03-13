@@ -9,6 +9,8 @@ import (
     "time"
 
     "backend/docker"
+
+    "github.com/docker/go-connections/nat"
 )
 
 type ContainerHandler struct {
@@ -144,10 +146,30 @@ func (h *ContainerHandler) Inspect(w http.ResponseWriter, r *http.Request) {
         "networkSettings": info.NetworkSettings,
         "mounts":          info.Mounts,
         "restartCount":    info.RestartCount,
-        "ports":           info.NetworkSettings.Ports,
+        "ports":           formatPorts(info.NetworkSettings.Ports),
     }
 
     writeJSON(w, http.StatusOK, resp)
+}
+
+// formatPorts converts a Docker PortMap into a flat string slice matching
+// the format used by the list endpoint (e.g. "0.0.0.0:8080->80/tcp").
+func formatPorts(portMap nat.PortMap) []string {
+    ports := make([]string, 0)
+    for port, bindings := range portMap {
+        if len(bindings) == 0 {
+            ports = append(ports, fmt.Sprintf("%s/%s", port.Port(), port.Proto()))
+            continue
+        }
+        for _, b := range bindings {
+            if b.HostPort != "" {
+                ports = append(ports, fmt.Sprintf("%s:%s->%s/%s", b.HostIP, b.HostPort, port.Port(), port.Proto()))
+            } else {
+                ports = append(ports, fmt.Sprintf("%s/%s", port.Port(), port.Proto()))
+            }
+        }
+    }
+    return ports
 }
 
 // redactEnv returns env vars with values redacted (key only)
