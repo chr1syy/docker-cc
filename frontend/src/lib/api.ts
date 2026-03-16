@@ -24,6 +24,11 @@ export async function getContainer(id: string): Promise<ContainerDetail> {
 
 export { fetchAPI };
 
+export async function getVersion(): Promise<string> {
+  const data = await fetchAPI('/api/version') as { version: string };
+  return data.version;
+}
+
 export async function startContainer(id: string) {
   return fetchAPI(`/api/containers/${encodeURIComponent(id)}/start`, { method: 'POST' });
 }

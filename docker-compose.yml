@@ -1,6 +1,6 @@
 services:
   docker-cc:
-    build: .
+    image: ghcr.io/chr1syy/docker-cc:latest
     ports:
       - "9090:8080"
     volumes:

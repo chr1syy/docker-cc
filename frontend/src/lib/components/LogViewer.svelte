@@ -132,13 +132,13 @@
   .controls button { background:transparent; border:1px solid var(--border); color:var(--text-secondary); padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; transition:all 150ms ease }
   .controls button:hover { background:rgba(255,255,255,0.04); color:var(--text); border-color:var(--text-muted) }
   .log-window { height:600px; overflow:auto; background:var(--bg, #0b0e14); border:1px solid var(--border); border-radius:var(--radius-sm, 6px); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size:12px; }
-  .line { display:flex; gap:8px; padding:2px 10px; align-items:flex-start; white-space:pre-wrap }
+  .line { display:flex; gap:8px; padding:2px 10px; align-items:flex-start; white-space:pre }
   .line:hover { background:rgba(255,255,255,0.02) }
   .ts { color:var(--text-muted, #64748b); white-space:nowrap; flex-shrink:0; font-size:11px }
   .stream { width:6px; height:6px; border-radius:50%; margin-top:6px; flex-shrink:0 }
   .stdout { background:var(--accent) }
   .stderr { background:var(--danger) }
-  .msg { flex:1; min-width:0; word-break:break-all }
+  .msg { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis }
   .live-badge { background: rgba(16,185,129,0.12); color:var(--success, #10b981); padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; animation:pulse 2s ease-in-out infinite }
   @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.6 } }
   @media (max-width:768px) {

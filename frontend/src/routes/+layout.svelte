@@ -5,8 +5,11 @@
   import { onMount, onDestroy } from 'svelte';
   import { auth } from '$lib/stores/auth';
   import { stats } from '$lib/stores/stats';
+  import { getVersion } from '$lib/api';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+
+  let appVersion = '';
 
   let state: any;
   const unsub = auth.subscribe(s => {
@@ -26,6 +29,7 @@
     if (ok && location.pathname === '/login') {
       goto('/');
     }
+    getVersion().then(v => appVersion = v).catch(() => {});
   });
 
   onDestroy(() => { unsub(); stats.stop(); });
@@ -64,6 +68,9 @@
           <small>{state.user}</small>
           <button on:click={() => auth.logout()}>Logout</button>
         </div>
+      {/if}
+      {#if appVersion}
+        <div style="color:var(--text-muted);font-size:11px;margin-top:6px">{appVersion}</div>
       {/if}
     </div>
   </aside>

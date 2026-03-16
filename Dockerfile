@@ -9,9 +9,10 @@ RUN npm ci && npm run build
 
 # Backend build
 FROM golang:1.24-alpine AS backend-build
+ARG VERSION=dev
 WORKDIR /app/backend
 COPY backend/ ./
-RUN GOTOOLCHAIN=local go build -o /app/server .
+RUN GOTOOLCHAIN=local go build -ldflags "-X main.Version=${VERSION}" -o /app/server .
 
 # Runtime image
 FROM alpine:3.20 AS runtime

@@ -24,6 +24,9 @@ import (
     authpkg "backend/auth"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=..."
+var Version = "dev"
+
 func main() {
     r := chi.NewRouter()
     // request id, real ip and default logger (text). We also add a small
@@ -100,7 +103,12 @@ func main() {
                     dockerState = "connected"
                 }
             }
-            _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "docker": dockerState})
+            _ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "docker": dockerState, "version": Version})
+        })
+
+        r.Get("/version", func(w http.ResponseWriter, r *http.Request) {
+            w.Header().Set("Content-Type", "application/json")
+            _ = json.NewEncoder(w).Encode(map[string]string{"version": Version})
         })
 
         // public auth endpoints
