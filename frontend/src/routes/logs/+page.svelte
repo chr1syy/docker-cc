@@ -17,7 +17,9 @@
     </select>
   </div>
   {#if selected}
-    <LogViewer containerId={selected} />
+    {#key selected}
+      <LogViewer containerId={selected} />
+    {/key}
   {:else}
     <div class="card">Select a container to view logs</div>
   {/if}

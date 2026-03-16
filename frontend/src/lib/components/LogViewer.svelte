@@ -22,16 +22,6 @@
 
   let ws: WebSocket | null = null;
   let containerEl: HTMLDivElement | null = null;
-  const lineHeight = 20; // px
-  let viewHeight = 600;
-  let scrollTop = 0;
-
-  // Virtual list derived values
-  $: currentLines = $lines;
-  $: total = currentLines.length;
-  $: startIndex = Math.max(0, Math.floor(scrollTop / lineHeight) - 5);
-  $: visibleCount = Math.ceil(viewHeight / lineHeight) + 10;
-  $: endIndex = Math.min(total, startIndex + visibleCount);
 
   function computeSince() {
     if (selectedRange === 'custom') {
@@ -103,17 +93,10 @@
 
   onMount(()=>{
     loadOnce();
-    const resize = () => { viewHeight = containerEl?.clientHeight ?? 400; };
-    window.addEventListener('resize', resize);
-    resize();
-    return () => { window.removeEventListener('resize', resize); stopWS(); }
+    return () => { stopWS(); }
   });
 
   onDestroy(()=> stopWS());
-
-  function onScroll(e:Event) {
-    scrollTop = (e.target as HTMLElement).scrollTop;
-  }
 
   // safe HTML escape
   function escapeHtml(s: string) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -132,13 +115,13 @@
   .controls button { background:transparent; border:1px solid var(--border); color:var(--text-secondary); padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; transition:all 150ms ease }
   .controls button:hover { background:rgba(255,255,255,0.04); color:var(--text); border-color:var(--text-muted) }
   .log-window { height:600px; overflow:auto; background:var(--bg, #0b0e14); border:1px solid var(--border); border-radius:var(--radius-sm, 6px); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size:12px; }
-  .line { display:flex; gap:8px; padding:2px 10px; align-items:flex-start; white-space:pre }
+  .line { display:flex; gap:8px; padding:2px 10px; align-items:flex-start; white-space:pre-wrap; word-break:break-word }
   .line:hover { background:rgba(255,255,255,0.02) }
   .ts { color:var(--text-muted, #64748b); white-space:nowrap; flex-shrink:0; font-size:11px }
   .stream { width:6px; height:6px; border-radius:50%; margin-top:6px; flex-shrink:0 }
   .stdout { background:var(--accent) }
   .stderr { background:var(--danger) }
-  .msg { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis }
+  .msg { flex:1; min-width:0 }
   .live-badge { background: rgba(16,185,129,0.12); color:var(--success, #10b981); padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; animation:pulse 2s ease-in-out infinite }
   @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.6 } }
   @media (max-width:768px) {
@@ -178,17 +161,15 @@
     <button on:click={loadOnce}>Refresh</button>
   </div>
 
-  <div bind:this={containerEl} class="log-window" on:scroll={onScroll}>
-    <div style={`height:${total * lineHeight}px;position:relative`}> 
-      {#each currentLines.slice(startIndex, endIndex) as line, i (startIndex+i)}
-        <div class="line" style={`position:absolute;left:0;right:0;top:${(startIndex+i)*lineHeight}px;height:${lineHeight}px`}> 
-          {#if showTimestamps}
-            <div class="ts">{line.timestamp ?? ''}</div>
-          {/if}
-          <div class="stream {line.stream==='stderr'?'stderr':'stdout'}"></div>
-          <div class="msg"><span>{@html highlight(line.message)}</span></div>
-        </div>
-      {/each}
-    </div>
+  <div bind:this={containerEl} class="log-window">
+    {#each $lines as line}
+      <div class="line">
+        {#if showTimestamps}
+          <div class="ts">{line.timestamp ?? ''}</div>
+        {/if}
+        <div class="stream {line.stream==='stderr'?'stderr':'stdout'}"></div>
+        <div class="msg"><span>{@html highlight(line.message)}</span></div>
+      </div>
+    {/each}
   </div>
 </div>
