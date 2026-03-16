@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import LogViewer from '$lib/components/LogViewer.svelte';
   import { getContainers } from '$lib/api';
-  let containers = [];
+  let containers: import('$lib/types').Container[] = [];
   let selected = '';
   onMount(async ()=>{ containers = await getContainers(); if (containers[0]) selected = containers[0].id; })
 </script>

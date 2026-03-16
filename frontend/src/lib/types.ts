@@ -15,10 +15,16 @@ export interface Container {
   created?: string | number;
 }
 
+export interface NetworkInfo {
+  IPAddress?: string;
+  Gateway?: string;
+  [key: string]: unknown;
+}
+
 export interface ContainerDetail extends Container {
-  fullState?: any;
-  config?: any;
-  networkSettings?: any;
-  mounts?: Array<any>;
+  fullState?: Record<string, unknown>;
+  config?: { Cmd?: string[]; Platform?: string; Env?: string[]; [key: string]: unknown };
+  networkSettings?: { Networks?: Record<string, NetworkInfo> };
+  mounts?: Array<Record<string, unknown>>;
   restartCount?: number;
 }
