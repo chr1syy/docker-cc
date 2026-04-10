@@ -125,6 +125,7 @@ func main() {
                 r.Get("/containers/{id}/logs", lh.Get)
                 r.Get("/containers/{id}/logs/stream", lh.WS)
                 r.Get("/stats/stream", sh.WS)
+                r.Get("/stats/history", sh.History)
                 r.Get("/containers/{id}/stats", sh.OneShot)
                 // Container action routes (require explicit allow)
                 r.With(handlers.RequireActions).Post("/containers/{id}/start", ch.Start)

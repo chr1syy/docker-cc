@@ -31,7 +31,7 @@ export interface ContainerHistory {
 type MetricsMap = Record<string, ContainerMetrics>;
 type HistoryMap = Record<string, ContainerHistory>;
 
-const MAX_POINTS = 60;
+const MAX_POINTS = 150;
 
 function pushPoint(arr: MetricPoint[], point: MetricPoint) {
   arr.push(point);
@@ -122,6 +122,30 @@ function createStatsStore() {
       shouldStop = true;
       started = false;
       ws?.close();
+    },
+    /** Hydrate the history store from backend buffered history. */
+    hydrate(data: Record<string, ContainerMetrics[]>) {
+      historyStore.update(hist => {
+        for (const [cid, metrics] of Object.entries(data)) {
+          if (!hist[cid]) hist[cid] = emptyHistory();
+          const h = hist[cid];
+          for (const m of metrics) {
+            const ts = new Date(m.timestamp).getTime() || Date.now();
+            // Only add points we don't already have (avoid duplicates
+            // when WebSocket data has already arrived).
+            const lastTs = h.cpu.length ? h.cpu[h.cpu.length - 1].ts : 0;
+            if (ts <= lastTs) continue;
+            pushPoint(h.cpu, { ts, value: m.cpu_percent });
+            pushPoint(h.mem, { ts, value: m.memory_percent });
+            pushPoint(h.memUsage, { ts, value: m.memory_usage });
+            pushPoint(h.netRx, { ts, value: m.network_rx_bytes });
+            pushPoint(h.netTx, { ts, value: m.network_tx_bytes });
+            pushPoint(h.blkRead, { ts, value: m.block_read_bytes });
+            pushPoint(h.blkWrite, { ts, value: m.block_write_bytes });
+          }
+        }
+        return { ...hist };
+      });
     }
   };
 }

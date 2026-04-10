@@ -244,7 +244,7 @@
   .stat-other .stat-value { color: var(--warning); }
 
   /* Table */
-  .table-card { padding: 0; overflow: hidden; }
+  .table-card { padding: 0; overflow-x: auto; }
   .containers-table { margin: 0; }
   .containers-table th { padding: 14px 16px; background: rgba(255,255,255,0.01); }
   .containers-table td { padding: 14px 16px; }

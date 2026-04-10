@@ -1,4 +1,5 @@
 import type { Container, ContainerDetail } from './types';
+import type { ContainerMetrics } from './stores/stats';
 
 async function fetchAPI(path: string, opts: RequestInit = {}) {
   const res = await fetch(path, opts);
@@ -43,4 +44,8 @@ export async function restartContainer(id: string) {
 
 export async function removeContainer(id: string) {
   return fetchAPI(`/api/containers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function getStatsHistory(): Promise<Record<string, ContainerMetrics[]>> {
+  return fetchAPI('/api/stats/history') as Promise<Record<string, ContainerMetrics[]>>;
 }

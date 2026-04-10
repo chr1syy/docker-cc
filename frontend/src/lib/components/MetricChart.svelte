@@ -34,7 +34,7 @@
     const dh = height;
     ctx.clearRect(0, 0, dw, dh);
 
-    const points = data.slice(-60);
+    const points = data.slice(-150);
     if (points.length < 2) return;
     const vals = points.map(p => p.value);
     const min = Math.min(...vals, 0);

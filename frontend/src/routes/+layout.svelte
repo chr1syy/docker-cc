@@ -5,7 +5,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { auth } from '$lib/stores/auth';
   import { stats } from '$lib/stores/stats';
-  import { getVersion } from '$lib/api';
+  import { getVersion, getStatsHistory } from '$lib/api';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
 
@@ -16,6 +16,7 @@
     state = s;
     if (s.isAuthenticated) {
       stats.start();
+      getStatsHistory().then(h => stats.hydrate(h)).catch(() => {});
     } else {
       stats.stop();
     }
