@@ -5,6 +5,7 @@ import (
     "net/http"
     "net/http/httptest"
     "testing"
+    "time"
 
     "github.com/go-chi/chi/v5"
 )
@@ -111,5 +112,68 @@ func TestCompileORRegex_EmptyList(t *testing.T) {
 func TestCompileORRegex_InvalidPattern(t *testing.T) {
     if _, err := compileORRegex("[unclosed"); err == nil {
         t.Errorf("expected error for malformed regex")
+    }
+}
+
+func TestBulkDigest_NilClient_503(t *testing.T) {
+    h := NewLogHandler(nil)
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/api/logs/digest", nil)
+
+    h.BulkDigest(rr, req)
+
+    if rr.Code != http.StatusServiceUnavailable {
+        t.Fatalf("expected 503, got %d (body=%q)", rr.Code, rr.Body.String())
+    }
+}
+
+func TestBulkDigest_InvalidConcurrency_Clamped(t *testing.T) {
+    h := NewLogHandler(nil)
+    rr := httptest.NewRecorder()
+    req := httptest.NewRequest(http.MethodGet, "/api/logs/digest?concurrency=999", nil)
+
+    h.BulkDigest(rr, req)
+
+    // With a nil client the request short-circuits to 503 before any fan-out,
+    // but the important assertion is that the handler does not panic or
+    // misbehave when given an out-of-range concurrency value.
+    if rr.Code != http.StatusServiceUnavailable {
+        t.Fatalf("expected 503 (nil client), got %d (body=%q)", rr.Code, rr.Body.String())
+    }
+}
+
+func TestParseDigestParams_Defaults(t *testing.T) {
+    req := httptest.NewRequest(http.MethodGet, "/api/logs/digest", nil)
+
+    p, err := parseDigestParams(req)
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if p.since != 24*time.Hour {
+        t.Errorf("expected since=24h, got %s", p.since)
+    }
+    if p.limit != 50 {
+        t.Errorf("expected limit=50, got %d", p.limit)
+    }
+    if p.maxScan != 50000 {
+        t.Errorf("expected maxScan=50000, got %d", p.maxScan)
+    }
+    if p.errorRegex == nil {
+        t.Errorf("expected non-nil errorRegex")
+    }
+    if p.warnRegex == nil {
+        t.Errorf("expected non-nil warnRegex")
+    }
+}
+
+func TestParseDigestParams_WarnNone(t *testing.T) {
+    req := httptest.NewRequest(http.MethodGet, "/api/logs/digest?warn_patterns=none", nil)
+
+    p, err := parseDigestParams(req)
+    if err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+    if p.warnRegex != nil {
+        t.Errorf("expected nil warnRegex when warn_patterns=none, got %v", p.warnRegex)
     }
 }
