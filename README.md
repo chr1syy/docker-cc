@@ -109,6 +109,36 @@ docker-cc/
 - Environment variables are redacted in container inspection responses
 - Docker socket access required for container management
 
+## Agent / Programmatic Access
+
+Docker CC exposes a small read-only API for external agents (Claude, cron jobs, uptime monitors, custom scripts). Enable it by setting `API_TOKEN`:
+
+    API_TOKEN=$(openssl rand -hex 32)
+
+Then call the API with a bearer header:
+
+    curl -H "Authorization: Bearer $API_TOKEN" https://your-host/api/status
+
+### Endpoints
+
+- `GET /api/status` — one-call health summary (container counts, recent log errors, healthy flag). Use this for morning checks.
+- `GET /api/logs/digest?since=24h` — aggregated error/warn scan across all running containers, bounded to 256 KB.
+- `GET /api/containers/{id}/logs/digest?since=24h` — drill-down on a single container with more samples and configurable regex patterns.
+
+### Security Notes
+
+- The token grants read-only access. Container start/stop/restart/remove are rejected even when `ALLOW_ACTIONS=true`.
+- Rotate the token periodically. To invalidate, change `API_TOKEN` and restart the container.
+- Always serve over HTTPS (the token is sent in cleartext in the `Authorization` header).
+- Bearer auth is OFF by default — leaving `API_TOKEN` unset preserves session+2FA-only access.
+
+### Suggested Agent Workflow
+
+1. Morning poll: `GET /api/status` → check `healthy` field.
+2. If unhealthy: read the `issues` array. Each issue has a `container` name and `kind` (`log_errors`, `stopped`, `unhealthy`, `restarting`).
+3. For log issues, drill down: `GET /api/containers/<name>/logs/digest?since=24h&limit=100`.
+4. Summarize and report.
+
 ## License
 
 MIT
