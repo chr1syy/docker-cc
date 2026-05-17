@@ -164,6 +164,7 @@ frontend/
 - Optional TOTP 2FA with encrypted secret storage on disk (`DATA_DIR`)
 - Container actions gated behind `ALLOW_ACTIONS=true` (off by default)
 - bcrypt password hashing (plaintext `ADMIN_PASSWORD` hashed at startup)
+- Optional `API_TOKEN` for agent/programmatic read-only access — read-only even when actions are enabled
 - Security headers on all API responses
 
 ## Environment Variables
@@ -180,6 +181,7 @@ frontend/
 | `ADMIN_PASSWORD_HASH` | — | Pre-hashed bcrypt password (alternative to `ADMIN_PASSWORD`) |
 | `ADMIN_USER` | `admin` | Admin username |
 | `ALLOW_ACTIONS` | `false` | Enable container start/stop/restart/remove actions |
+| `API_TOKEN` | — | If set, enables bearer-token authentication for read-only API access. Send `Authorization: Bearer <token>`. Container actions remain rejected even with `ALLOW_ACTIONS=true`. |
 | `SESSION_TTL` | `24h` | Session duration |
 | `STATIC_DIR` | `./static` | Path to frontend static build |
 | `DATA_DIR` | `./data` | Persistent data directory (2FA secrets, etc.) |
