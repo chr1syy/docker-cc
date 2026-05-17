@@ -279,6 +279,70 @@ type containerDigest struct {
     Truncated    bool                `json:"truncated"`
 }
 
+// scanAllContainers fans out the per-container log scanner across the
+// provided containers using the given concurrency. Returns a containerDigest
+// for each input container, in the same order as the input. Used by both
+// BulkDigest and the StatusHandler so neither needs its own goroutine
+// plumbing.
+func (h *LogHandler) scanAllContainers(ctx context.Context, containers []dockertypes.Container, params digestParams, concurrency int) []containerDigest {
+    if concurrency < 1 {
+        concurrency = 1
+    }
+    sem := make(chan struct{}, concurrency)
+    var wg sync.WaitGroup
+    results := make([]containerDigest, len(containers))
+    for i, c := range containers {
+        wg.Add(1)
+        go func(i int, c dockertypes.Container) {
+            defer wg.Done()
+            sem <- struct{}{}
+            defer func() { <-sem }()
+
+            name := ""
+            if len(c.Names) > 0 {
+                name = strings.TrimPrefix(c.Names[0], "/")
+            }
+            if name == "" {
+                name = c.ID
+            }
+
+            cd := containerDigest{
+                Container:   name,
+                ContainerID: c.ID,
+                Samples:     []docker.DigestLine{},
+            }
+
+            scanCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+            defer cancel()
+
+            rc, err := h.dclient.LogsSince(scanCtx, c.ID, params.since)
+            if err != nil {
+                results[i] = cd
+                return
+            }
+            defer rc.Close()
+
+            res := docker.ScanLogs(rc, docker.DigestOptions{
+                Since:       params.since,
+                ErrorRegex:  params.errorRegex,
+                WarnRegex:   params.warnRegex,
+                SampleLimit: params.limit,
+                MaxScan:     params.maxScan,
+            })
+
+            cd.ErrorCount = res.ErrorCount
+            cd.WarnCount = res.WarnCount
+            cd.FirstErrorAt = res.FirstErrorAt
+            cd.LastErrorAt = res.LastErrorAt
+            cd.Truncated = res.Truncated
+            cd.Samples = res.Samples
+            results[i] = cd
+        }(i, c)
+    }
+    wg.Wait()
+    return results
+}
+
 // GET /api/logs/digest — fans out the per-container scanner across all
 // running containers (or all containers when include_stopped=true) and
 // returns a bounded aggregate (256 KB cap).
@@ -345,58 +409,7 @@ func (h *LogHandler) BulkDigest(w http.ResponseWriter, r *http.Request) {
         filtered = append(filtered, c)
     }
 
-    sem := make(chan struct{}, concurrency)
-    var wg sync.WaitGroup
-    results := make([]containerDigest, len(filtered))
-    for i, c := range filtered {
-        wg.Add(1)
-        go func(i int, c dockertypes.Container) {
-            defer wg.Done()
-            sem <- struct{}{}
-            defer func() { <-sem }()
-
-            name := ""
-            if len(c.Names) > 0 {
-                name = strings.TrimPrefix(c.Names[0], "/")
-            }
-            if name == "" {
-                name = c.ID
-            }
-
-            cd := containerDigest{
-                Container:   name,
-                ContainerID: c.ID,
-                Samples:     []docker.DigestLine{},
-            }
-
-            ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
-            defer cancel()
-
-            rc, err := h.dclient.LogsSince(ctx, c.ID, params.since)
-            if err != nil {
-                results[i] = cd
-                return
-            }
-            defer rc.Close()
-
-            res := docker.ScanLogs(rc, docker.DigestOptions{
-                Since:       params.since,
-                ErrorRegex:  params.errorRegex,
-                WarnRegex:   params.warnRegex,
-                SampleLimit: params.limit,
-                MaxScan:     params.maxScan,
-            })
-
-            cd.ErrorCount = res.ErrorCount
-            cd.WarnCount = res.WarnCount
-            cd.FirstErrorAt = res.FirstErrorAt
-            cd.LastErrorAt = res.LastErrorAt
-            cd.Truncated = res.Truncated
-            cd.Samples = res.Samples
-            results[i] = cd
-        }(i, c)
-    }
-    wg.Wait()
+    results := h.scanAllContainers(r.Context(), filtered, params, concurrency)
 
     totalErrors := 0
     totalWarns := 0
