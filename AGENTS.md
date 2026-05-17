@@ -104,6 +104,7 @@ frontend/
 ### Protected (requires auth session)
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/status` | Aggregated health: container state counts + log errors digest (agent-friendly) |
 | GET | `/api/containers` | List all containers |
 | GET | `/api/containers/{id}` | Inspect container |
 | GET | `/api/containers/{id}/logs` | Fetch container logs |
