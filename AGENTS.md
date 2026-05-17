@@ -29,6 +29,8 @@ Docker CC is a lightweight, self-hosted Docker container dashboard with a Go bac
 │  ├─ /api/containers/*  CRUD + actions           │
 │  ├─ /api/stats/stream  WebSocket live stats     │
 │  ├─ /api/stats/history Buffered stats history   │
+│  ├─ /api/status        Agent health digest      │
+│  ├─ /api/logs/digest   Bulk log error scanner   │
 │  ├─ /api/*/logs/stream WebSocket log streaming  │
 │  └─ /*                 Static file server (SPA) │
 └──────────────┬──────────────────────────────────┘
@@ -146,6 +148,7 @@ frontend/
 - Security headers and origin checking on all API routes
 - Version injected at build time via `-ldflags "-X main.Version=..."`
 - Stats are collected by a background goroutine every 2s from server start, stored in an in-memory ring buffer (150 points per container, ~5 min). Frontend hydrates from `/api/stats/history` on auth, then continues via WebSocket for real-time updates.
+- The agent API (`/api/status`, `/api/logs/digest`, `/api/containers/{id}/logs/digest`) accepts either session cookies or `Authorization: Bearer <API_TOKEN>`. Bearer-auth requests are read-only — container action middleware (`RequireActions`) rejects them.
 
 ### Frontend (SvelteKit)
 
