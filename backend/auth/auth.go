@@ -215,3 +215,10 @@ func (s *SessionManager) IsAgentRequest(ctx context.Context) bool {
     v, ok := ctx.Value(agentContextKey).(bool)
     return ok && v
 }
+
+// AgentContextKey exposes the package-private context key used to mark agent
+// (bearer-token) requests, so other packages can read it from a request context
+// without depending on a SessionManager instance.
+func AgentContextKey() contextKey {
+    return agentContextKey
+}

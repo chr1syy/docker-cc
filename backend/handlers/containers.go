@@ -8,6 +8,7 @@ import (
     "strings"
     "time"
 
+    authpkg "backend/auth"
     "backend/docker"
 
     "github.com/docker/go-connections/nat"
@@ -22,11 +23,17 @@ func NewContainerHandler(d *docker.Client) *ContainerHandler {
 }
 
 // RequireActions is middleware that blocks container action routes unless
-// the ALLOW_ACTIONS env var is set to "true".
+// the ALLOW_ACTIONS env var is set to "true". It additionally rejects
+// bearer-token (agent) requests, which are always read-only.
 func RequireActions(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         if os.Getenv("ALLOW_ACTIONS") != "true" {
             writeError(w, http.StatusForbidden, "container actions are disabled")
+            return
+        }
+        // Reject bearer-token requests from mutating operations
+        if v, ok := r.Context().Value(authpkg.AgentContextKey()).(bool); ok && v {
+            http.Error(w, "forbidden: read-only token", http.StatusForbidden)
             return
         }
         next.ServeHTTP(w, r)
