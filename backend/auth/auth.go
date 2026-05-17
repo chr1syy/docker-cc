@@ -3,8 +3,10 @@ package auth
 import (
     "context"
     "crypto/rand"
+    "crypto/subtle"
     "encoding/hex"
     "errors"
+    "log"
     "net/http"
     "os"
     "strconv"
@@ -23,6 +25,7 @@ type SessionManager struct {
     sessions sync.Map // map[string]sessionData
     ttl      time.Duration
     totp     *TOTPManager
+    apiToken string
 }
 
 func NewSessionManager(ttl time.Duration) *SessionManager {
@@ -41,6 +44,10 @@ func NewSessionManager(ttl time.Duration) *SessionManager {
     }
 
     sm := &SessionManager{ttl: ttl}
+    if tok := os.Getenv("API_TOKEN"); tok != "" {
+        sm.apiToken = tok
+        log.Println("API token authentication enabled")
+    }
     go sm.cleanupLoop()
     return sm
 }
@@ -101,6 +108,7 @@ func (s *SessionManager) CleanExpired() {
 type contextKey string
 
 const usernameContextKey contextKey = "auth_username"
+const agentContextKey contextKey = "auth_is_agent"
 
 // AuthMiddleware enforces session-based authentication. It expects a cookie named
 // "session" containing a session ID. On success it stores the username in the
@@ -108,6 +116,26 @@ const usernameContextKey contextKey = "auth_username"
 // it responds with 401.
 func (s *SessionManager) AuthMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Bearer-token path: only active when API_TOKEN is configured.
+        if authz := r.Header.Get("Authorization"); strings.HasPrefix(authz, "Bearer ") {
+            if s.apiToken == "" {
+                http.Error(w, "unauthorized", http.StatusUnauthorized)
+                return
+            }
+            token := strings.TrimPrefix(authz, "Bearer ")
+            // Constant-time compare, but only after a length check —
+            // ConstantTimeCompare requires equal lengths to be meaningful.
+            if len(token) != len(s.apiToken) ||
+                subtle.ConstantTimeCompare([]byte(token), []byte(s.apiToken)) != 1 {
+                http.Error(w, "unauthorized", http.StatusUnauthorized)
+                return
+            }
+            ctx := context.WithValue(r.Context(), usernameContextKey, "agent")
+            ctx = context.WithValue(ctx, agentContextKey, true)
+            next.ServeHTTP(w, r.WithContext(ctx))
+            return
+        }
+
         c, err := r.Cookie("session")
         if err != nil || c.Value == "" {
             http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -178,4 +206,12 @@ func UsernameFromContext(ctx context.Context) (string, bool) {
     }
     u, ok := v.(string)
     return u, ok
+}
+
+// IsAgentRequest reports whether the request was authenticated via API token
+// (i.e. bearer auth) rather than a user session cookie. Used to gate mutating
+// operations: agent tokens are read-only.
+func (s *SessionManager) IsAgentRequest(ctx context.Context) bool {
+    v, ok := ctx.Value(agentContextKey).(bool)
+    return ok && v
 }
