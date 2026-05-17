@@ -112,6 +112,7 @@ frontend/
 | GET | `/api/containers/{id}/stats` | One-shot container stats |
 | GET | `/api/stats/stream` | WebSocket live stats for all containers |
 | GET | `/api/stats/history` | Buffered stats history (~5 min ring buffer) |
+| GET | `/api/logs/digest` | Aggregated error/warn digest across all running containers (256 KB cap) |
 
 ### Protected + Actions enabled (`ALLOW_ACTIONS=true`)
 | Method | Path | Description |
