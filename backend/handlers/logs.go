@@ -8,9 +8,12 @@ import (
     "log"
     "net/http"
     "regexp"
+    "sort"
     "strings"
+    "sync"
     "time"
 
+    dockertypes "github.com/docker/docker/api/types"
     "github.com/go-chi/chi/v5"
     "github.com/gorilla/websocket"
     "strconv"
@@ -109,6 +112,95 @@ func (h *LogHandler) Get(w http.ResponseWriter, r *http.Request) {
     _ = json.NewEncoder(w).Encode(map[string]interface{}{"lines": lines})
 }
 
+// digestParams holds the parsed common query parameters shared by the
+// per-container Digest and the bulk BulkDigest endpoints.
+type digestParams struct {
+    since      time.Duration
+    limit      int
+    maxScan    int
+    errorRegex *regexp.Regexp
+    warnRegex  *regexp.Regexp
+}
+
+// parseDigestParams parses common digest query parameters. Returned errors
+// describe malformed input and are suitable for an HTTP 400 response.
+func parseDigestParams(r *http.Request) (digestParams, error) {
+    p := digestParams{
+        since:      24 * time.Hour,
+        limit:      50,
+        maxScan:    50000,
+        errorRegex: docker.DefaultErrorRegex,
+        warnRegex:  docker.DefaultWarnRegex,
+    }
+    q := r.URL.Query()
+
+    if v := q.Get("since"); v != "" {
+        parsed, err := time.ParseDuration(v)
+        if err != nil {
+            return p, fmt.Errorf("invalid since: %s", err.Error())
+        }
+        p.since = parsed
+    }
+    const minSince = 1 * time.Minute
+    const maxSince = 7 * 24 * time.Hour
+    if p.since < minSince {
+        p.since = minSince
+    }
+    if p.since > maxSince {
+        p.since = maxSince
+    }
+
+    if v := q.Get("limit"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil {
+            p.limit = n
+        }
+    }
+    if p.limit < 1 {
+        p.limit = 1
+    }
+    if p.limit > 200 {
+        p.limit = 200
+    }
+
+    if v := q.Get("max_scan"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil {
+            p.maxScan = n
+        }
+    }
+    if p.maxScan < 100 {
+        p.maxScan = 100
+    }
+    if p.maxScan > 200000 {
+        p.maxScan = 200000
+    }
+
+    if v := q.Get("error_patterns"); v != "" {
+        re, err := compileORRegex(v)
+        if err != nil {
+            return p, fmt.Errorf("invalid regex: %s", err.Error())
+        }
+        p.errorRegex = re
+    }
+
+    if q.Has("warn_patterns") {
+        v := q.Get("warn_patterns")
+        switch {
+        case v == "":
+            // keep default
+        case v == "none":
+            p.warnRegex = nil
+        default:
+            re, err := compileORRegex(v)
+            if err != nil {
+                return p, fmt.Errorf("invalid regex: %s", err.Error())
+            }
+            p.warnRegex = re
+        }
+    }
+
+    return p, nil
+}
+
 // GET /api/containers/{id}/logs/digest
 func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
     id := chi.URLParam(r, "id")
@@ -117,78 +209,10 @@ func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    q := r.URL.Query()
-
-    since := 24 * time.Hour
-    if v := q.Get("since"); v != "" {
-        parsed, err := time.ParseDuration(v)
-        if err != nil {
-            http.Error(w, fmt.Sprintf(`{"error":"invalid since: %s"}`, err.Error()), http.StatusBadRequest)
-            return
-        }
-        since = parsed
-    }
-    const minSince = 1 * time.Minute
-    const maxSince = 7 * 24 * time.Hour
-    if since < minSince {
-        since = minSince
-    }
-    if since > maxSince {
-        since = maxSince
-    }
-
-    limit := 50
-    if v := q.Get("limit"); v != "" {
-        if n, err := strconv.Atoi(v); err == nil {
-            limit = n
-        }
-    }
-    if limit < 1 {
-        limit = 1
-    }
-    if limit > 200 {
-        limit = 200
-    }
-
-    maxScan := 50000
-    if v := q.Get("max_scan"); v != "" {
-        if n, err := strconv.Atoi(v); err == nil {
-            maxScan = n
-        }
-    }
-    if maxScan < 100 {
-        maxScan = 100
-    }
-    if maxScan > 200000 {
-        maxScan = 200000
-    }
-
-    errorRegex := docker.DefaultErrorRegex
-    if v := q.Get("error_patterns"); v != "" {
-        re, err := compileORRegex(v)
-        if err != nil {
-            http.Error(w, fmt.Sprintf(`{"error":"invalid regex: %s"}`, err.Error()), http.StatusBadRequest)
-            return
-        }
-        errorRegex = re
-    }
-
-    warnRegex := docker.DefaultWarnRegex
-    if q.Has("warn_patterns") {
-        v := q.Get("warn_patterns")
-        switch {
-        case v == "":
-            warnRegex = docker.DefaultWarnRegex
-        case v == "none":
-            warnRegex = nil
-        default:
-            re, err := compileORRegex(v)
-            if err != nil {
-                http.Error(w, fmt.Sprintf(`{"error":"invalid regex: %s"}`, err.Error()), http.StatusBadRequest)
-                return
-            }
-            warnRegex = re
-        }
+    params, err := parseDigestParams(r)
+    if err != nil {
+        http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+        return
     }
 
     if h == nil || h.dclient == nil {
@@ -210,7 +234,7 @@ func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
     ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
     defer cancel()
 
-    rc, err := h.dclient.LogsSince(ctx, id, since)
+    rc, err := h.dclient.LogsSince(ctx, id, params.since)
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
@@ -218,17 +242,17 @@ func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
     defer rc.Close()
 
     result := docker.ScanLogs(rc, docker.DigestOptions{
-        Since:       since,
-        ErrorRegex:  errorRegex,
-        WarnRegex:   warnRegex,
-        SampleLimit: limit,
-        MaxScan:     maxScan,
+        Since:       params.since,
+        ErrorRegex:  params.errorRegex,
+        WarnRegex:   params.warnRegex,
+        SampleLimit: params.limit,
+        MaxScan:     params.maxScan,
     })
 
     resp := map[string]interface{}{
         "container":      name,
         "container_id":   id,
-        "window":         since.String(),
+        "window":         params.since.String(),
         "checked_at":     time.Now().UTC().Format(time.RFC3339),
         "error_count":    result.ErrorCount,
         "warn_count":     result.WarnCount,
@@ -241,6 +265,230 @@ func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
 
     w.Header().Set("Content-Type", "application/json")
     _ = json.NewEncoder(w).Encode(resp)
+}
+
+// containerDigest is a single per-container entry in a bulk digest response.
+type containerDigest struct {
+    Container    string              `json:"container"`
+    ContainerID  string              `json:"container_id"`
+    ErrorCount   int                 `json:"error_count"`
+    WarnCount    int                 `json:"warn_count"`
+    FirstErrorAt string              `json:"first_error_at,omitempty"`
+    LastErrorAt  string              `json:"last_error_at,omitempty"`
+    Samples      []docker.DigestLine `json:"samples"`
+    Truncated    bool                `json:"truncated"`
+}
+
+// GET /api/logs/digest — fans out the per-container scanner across all
+// running containers (or all containers when include_stopped=true) and
+// returns a bounded aggregate (256 KB cap).
+func (h *LogHandler) BulkDigest(w http.ResponseWriter, r *http.Request) {
+    if h == nil || h.dclient == nil {
+        http.Error(w, "docker daemon unreachable", http.StatusServiceUnavailable)
+        return
+    }
+
+    params, err := parseDigestParams(r)
+    if err != nil {
+        http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+        return
+    }
+
+    q := r.URL.Query()
+
+    concurrency := 5
+    if v := q.Get("concurrency"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil {
+            concurrency = n
+        }
+    }
+    if concurrency < 1 {
+        concurrency = 1
+    }
+    if concurrency > 16 {
+        concurrency = 16
+    }
+
+    includeStopped := false
+    if v := q.Get("include_stopped"); v != "" {
+        if b, err := strconv.ParseBool(v); err == nil {
+            includeStopped = b
+        }
+    }
+
+    perContainerSamples := 5
+    if v := q.Get("per_container_samples"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil {
+            perContainerSamples = n
+        }
+    }
+    if perContainerSamples < 1 {
+        perContainerSamples = 1
+    }
+    if perContainerSamples > 50 {
+        perContainerSamples = 50
+    }
+
+    listCtx, listCancel := context.WithTimeout(r.Context(), 5*time.Second)
+    containers, err := h.dclient.ListContainers(listCtx)
+    listCancel()
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    filtered := make([]dockertypes.Container, 0, len(containers))
+    for _, c := range containers {
+        if !includeStopped && c.State != "running" {
+            continue
+        }
+        filtered = append(filtered, c)
+    }
+
+    sem := make(chan struct{}, concurrency)
+    var wg sync.WaitGroup
+    results := make([]containerDigest, len(filtered))
+    for i, c := range filtered {
+        wg.Add(1)
+        go func(i int, c dockertypes.Container) {
+            defer wg.Done()
+            sem <- struct{}{}
+            defer func() { <-sem }()
+
+            name := ""
+            if len(c.Names) > 0 {
+                name = strings.TrimPrefix(c.Names[0], "/")
+            }
+            if name == "" {
+                name = c.ID
+            }
+
+            cd := containerDigest{
+                Container:   name,
+                ContainerID: c.ID,
+                Samples:     []docker.DigestLine{},
+            }
+
+            ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+            defer cancel()
+
+            rc, err := h.dclient.LogsSince(ctx, c.ID, params.since)
+            if err != nil {
+                results[i] = cd
+                return
+            }
+            defer rc.Close()
+
+            res := docker.ScanLogs(rc, docker.DigestOptions{
+                Since:       params.since,
+                ErrorRegex:  params.errorRegex,
+                WarnRegex:   params.warnRegex,
+                SampleLimit: params.limit,
+                MaxScan:     params.maxScan,
+            })
+
+            cd.ErrorCount = res.ErrorCount
+            cd.WarnCount = res.WarnCount
+            cd.FirstErrorAt = res.FirstErrorAt
+            cd.LastErrorAt = res.LastErrorAt
+            cd.Truncated = res.Truncated
+            cd.Samples = res.Samples
+            results[i] = cd
+        }(i, c)
+    }
+    wg.Wait()
+
+    totalErrors := 0
+    totalWarns := 0
+    containersWithErrors := 0
+    for _, cd := range results {
+        totalErrors += cd.ErrorCount
+        totalWarns += cd.WarnCount
+        if cd.ErrorCount > 0 {
+            containersWithErrors++
+        }
+    }
+
+    sort.SliceStable(results, func(i, j int) bool {
+        a, b := results[i], results[j]
+        if a.ErrorCount != b.ErrorCount {
+            return a.ErrorCount > b.ErrorCount
+        }
+        if a.WarnCount != b.WarnCount {
+            return a.WarnCount > b.WarnCount
+        }
+        return a.Container < b.Container
+    })
+
+    for i := range results {
+        if len(results[i].Samples) > perContainerSamples {
+            results[i].Samples = results[i].Samples[:perContainerSamples]
+        }
+    }
+
+    resp := map[string]interface{}{
+        "window":     params.since.String(),
+        "checked_at": time.Now().UTC().Format(time.RFC3339),
+        "summary": map[string]int{
+            "containers_scanned":     len(results),
+            "containers_with_errors": containersWithErrors,
+            "total_errors":           totalErrors,
+            "total_warns":            totalWarns,
+        },
+        "containers": results,
+    }
+
+    const maxBytes = 256 * 1024
+    body, _ := json.Marshal(resp)
+    truncated := false
+
+    if len(body) > maxBytes {
+        // Drop samples starting from the container with the lowest error
+        // count (clean ones first). After all samples are gone, drop the
+        // containers themselves, lowest counts first.
+        order := make([]int, len(results))
+        for i := range order {
+            order[i] = i
+        }
+        sort.SliceStable(order, func(i, j int) bool {
+            a, b := results[order[i]], results[order[j]]
+            if a.ErrorCount != b.ErrorCount {
+                return a.ErrorCount < b.ErrorCount
+            }
+            return a.WarnCount < b.WarnCount
+        })
+        for _, idx := range order {
+            if len(results[idx].Samples) == 0 {
+                continue
+            }
+            results[idx].Samples = []docker.DigestLine{}
+            truncated = true
+            resp["containers"] = results
+            body, _ = json.Marshal(resp)
+            if len(body) <= maxBytes {
+                break
+            }
+        }
+
+        if len(body) > maxBytes {
+            // Drop containers, lowest priority first (kept sorted from the
+            // earlier descending sort, so trim from the tail).
+            for len(results) > 0 && len(body) > maxBytes {
+                results = results[:len(results)-1]
+                resp["containers"] = results
+                body, _ = json.Marshal(resp)
+            }
+            truncated = true
+        }
+    }
+
+    if truncated {
+        resp["response_truncated"] = true
+        body, _ = json.Marshal(resp)
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    _, _ = w.Write(body)
 }
 
 // compileORRegex takes a comma-separated list of regex fragments and
