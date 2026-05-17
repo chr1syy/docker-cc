@@ -124,6 +124,7 @@ func main() {
                 r.Get("/containers/{id}", ch.Inspect)
                 r.Get("/containers/{id}/logs", lh.Get)
                 r.Get("/containers/{id}/logs/stream", lh.WS)
+                r.Get("/containers/{id}/logs/digest", lh.Digest)
                 r.Get("/stats/stream", sh.WS)
                 r.Get("/stats/history", sh.History)
                 r.Get("/containers/{id}/stats", sh.OneShot)

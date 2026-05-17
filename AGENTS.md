@@ -108,6 +108,7 @@ frontend/
 | GET | `/api/containers/{id}` | Inspect container |
 | GET | `/api/containers/{id}/logs` | Fetch container logs |
 | GET | `/api/containers/{id}/logs/stream` | WebSocket log streaming |
+| GET | `/api/containers/{id}/logs/digest` | Filtered error/warn digest with samples over a time window |
 | GET | `/api/containers/{id}/stats` | One-shot container stats |
 | GET | `/api/stats/stream` | WebSocket live stats for all containers |
 | GET | `/api/stats/history` | Buffered stats history (~5 min ring buffer) |

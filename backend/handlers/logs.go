@@ -3,8 +3,11 @@ package handlers
 import (
     "context"
     "encoding/json"
+    "fmt"
     "io"
+    "log"
     "net/http"
+    "regexp"
     "strings"
     "time"
 
@@ -104,6 +107,159 @@ func (h *LogHandler) Get(w http.ResponseWriter, r *http.Request) {
 
     w.Header().Set("Content-Type", "application/json")
     _ = json.NewEncoder(w).Encode(map[string]interface{}{"lines": lines})
+}
+
+// GET /api/containers/{id}/logs/digest
+func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
+    id := chi.URLParam(r, "id")
+    if id == "" {
+        http.Error(w, "missing container id", http.StatusBadRequest)
+        return
+    }
+
+    q := r.URL.Query()
+
+    since := 24 * time.Hour
+    if v := q.Get("since"); v != "" {
+        parsed, err := time.ParseDuration(v)
+        if err != nil {
+            http.Error(w, fmt.Sprintf(`{"error":"invalid since: %s"}`, err.Error()), http.StatusBadRequest)
+            return
+        }
+        since = parsed
+    }
+    const minSince = 1 * time.Minute
+    const maxSince = 7 * 24 * time.Hour
+    if since < minSince {
+        since = minSince
+    }
+    if since > maxSince {
+        since = maxSince
+    }
+
+    limit := 50
+    if v := q.Get("limit"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil {
+            limit = n
+        }
+    }
+    if limit < 1 {
+        limit = 1
+    }
+    if limit > 200 {
+        limit = 200
+    }
+
+    maxScan := 50000
+    if v := q.Get("max_scan"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil {
+            maxScan = n
+        }
+    }
+    if maxScan < 100 {
+        maxScan = 100
+    }
+    if maxScan > 200000 {
+        maxScan = 200000
+    }
+
+    errorRegex := docker.DefaultErrorRegex
+    if v := q.Get("error_patterns"); v != "" {
+        re, err := compileORRegex(v)
+        if err != nil {
+            http.Error(w, fmt.Sprintf(`{"error":"invalid regex: %s"}`, err.Error()), http.StatusBadRequest)
+            return
+        }
+        errorRegex = re
+    }
+
+    warnRegex := docker.DefaultWarnRegex
+    if q.Has("warn_patterns") {
+        v := q.Get("warn_patterns")
+        switch {
+        case v == "":
+            warnRegex = docker.DefaultWarnRegex
+        case v == "none":
+            warnRegex = nil
+        default:
+            re, err := compileORRegex(v)
+            if err != nil {
+                http.Error(w, fmt.Sprintf(`{"error":"invalid regex: %s"}`, err.Error()), http.StatusBadRequest)
+                return
+            }
+            warnRegex = re
+        }
+    }
+
+    if h == nil || h.dclient == nil {
+        http.Error(w, "docker daemon unreachable", http.StatusServiceUnavailable)
+        return
+    }
+
+    name := id
+    inspectCtx, inspectCancel := context.WithTimeout(r.Context(), 5*time.Second)
+    if info, err := h.dclient.InspectContainer(inspectCtx, id); err != nil {
+        log.Printf("warning: inspect container %q failed: %v", id, err)
+    } else {
+        if info.Name != "" {
+            name = strings.TrimPrefix(info.Name, "/")
+        }
+    }
+    inspectCancel()
+
+    ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+    defer cancel()
+
+    rc, err := h.dclient.LogsSince(ctx, id, since)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    defer rc.Close()
+
+    result := docker.ScanLogs(rc, docker.DigestOptions{
+        Since:       since,
+        ErrorRegex:  errorRegex,
+        WarnRegex:   warnRegex,
+        SampleLimit: limit,
+        MaxScan:     maxScan,
+    })
+
+    resp := map[string]interface{}{
+        "container":      name,
+        "container_id":   id,
+        "window":         since.String(),
+        "checked_at":     time.Now().UTC().Format(time.RFC3339),
+        "error_count":    result.ErrorCount,
+        "warn_count":     result.WarnCount,
+        "first_error_at": result.FirstErrorAt,
+        "last_error_at":  result.LastErrorAt,
+        "lines_scanned":  result.Scanned,
+        "truncated":      result.Truncated,
+        "samples":        result.Samples,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    _ = json.NewEncoder(w).Encode(resp)
+}
+
+// compileORRegex takes a comma-separated list of regex fragments and
+// compiles them into a single case-insensitive alternation pattern.
+func compileORRegex(commaList string) (*regexp.Regexp, error) {
+    parts := strings.Split(commaList, ",")
+    cleaned := make([]string, 0, len(parts))
+    for _, p := range parts {
+        p = strings.TrimSpace(p)
+        if p == "" {
+            continue
+        }
+        cleaned = append(cleaned, p)
+    }
+    if len(cleaned) == 0 {
+        return nil, fmt.Errorf("no patterns provided")
+    }
+    pattern := "(?i)(" + strings.Join(cleaned, "|") + ")"
+    return regexp.Compile(pattern)
 }
 
 // WS /api/containers/{id}/logs/stream
