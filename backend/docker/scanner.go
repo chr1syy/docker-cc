@@ -147,6 +147,13 @@ func ScanLogs(rc io.Reader, opts DigestOptions) DigestResult {
         }
     }
 
+    // bufio.Scanner stops silently on bufio.ErrTooLong (line > 1MB) and other
+    // read errors; surface that as truncation so callers know the scan ended
+    // early rather than naturally hitting EOF.
+    if err := scanner.Err(); err != nil {
+        res.Truncated = true
+    }
+
     samples := errorSamples
     if len(samples) < opts.SampleLimit {
         remaining := opts.SampleLimit - len(samples)

@@ -2,8 +2,6 @@ package handlers
 
 import (
     "context"
-    "encoding/json"
-    "fmt"
     "net/http"
     "strconv"
     "strings"
@@ -64,7 +62,7 @@ func (h *StatusHandler) Get(w http.ResponseWriter, r *http.Request) {
     if v := q.Get("since"); v != "" {
         parsed, err := time.ParseDuration(v)
         if err != nil {
-            http.Error(w, fmt.Sprintf(`{"error":"invalid since: %s"}`, err.Error()), http.StatusBadRequest)
+            writeError(w, http.StatusBadRequest, "invalid since: "+err.Error())
             return
         }
         since = parsed
@@ -100,7 +98,7 @@ func (h *StatusHandler) Get(w http.ResponseWriter, r *http.Request) {
         containers, err := h.dclient.ListContainers(listCtx)
         listCancel()
         if err != nil {
-            http.Error(w, err.Error(), http.StatusInternalServerError)
+            writeError(w, http.StatusInternalServerError, "failed to list containers")
             return
         }
 
@@ -224,8 +222,7 @@ func (h *StatusHandler) Get(w http.ResponseWriter, r *http.Request) {
         Issues:     issues,
     }
 
-    w.Header().Set("Content-Type", "application/json")
-    _ = json.NewEncoder(w).Encode(resp)
+    writeJSON(w, http.StatusOK, resp)
 }
 
 func containerDisplayName(c dockertypes.Container) string {

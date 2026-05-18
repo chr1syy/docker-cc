@@ -33,7 +33,7 @@ func RequireActions(next http.Handler) http.Handler {
         }
         // Reject bearer-token requests from mutating operations
         if v, ok := r.Context().Value(authpkg.AgentContextKey()).(bool); ok && v {
-            http.Error(w, "forbidden: read-only token", http.StatusForbidden)
+            writeError(w, http.StatusForbidden, "forbidden: read-only token")
             return
         }
         next.ServeHTTP(w, r)

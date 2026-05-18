@@ -205,18 +205,18 @@ func parseDigestParams(r *http.Request) (digestParams, error) {
 func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
     id := chi.URLParam(r, "id")
     if id == "" {
-        http.Error(w, "missing container id", http.StatusBadRequest)
+        writeError(w, http.StatusBadRequest, "missing container id")
         return
     }
 
     params, err := parseDigestParams(r)
     if err != nil {
-        http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+        writeError(w, http.StatusBadRequest, err.Error())
         return
     }
 
     if h == nil || h.dclient == nil {
-        http.Error(w, "docker daemon unreachable", http.StatusServiceUnavailable)
+        writeError(w, http.StatusServiceUnavailable, "docker daemon unreachable")
         return
     }
 
@@ -236,7 +236,7 @@ func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
 
     rc, err := h.dclient.LogsSince(ctx, id, params.since)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        writeError(w, http.StatusInternalServerError, "failed to fetch logs")
         return
     }
     defer rc.Close()
@@ -263,8 +263,7 @@ func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
         "samples":        result.Samples,
     }
 
-    w.Header().Set("Content-Type", "application/json")
-    _ = json.NewEncoder(w).Encode(resp)
+    writeJSON(w, http.StatusOK, resp)
 }
 
 // containerDigest is a single per-container entry in a bulk digest response.
@@ -348,13 +347,13 @@ func (h *LogHandler) scanAllContainers(ctx context.Context, containers []dockert
 // returns a bounded aggregate (256 KB cap).
 func (h *LogHandler) BulkDigest(w http.ResponseWriter, r *http.Request) {
     if h == nil || h.dclient == nil {
-        http.Error(w, "docker daemon unreachable", http.StatusServiceUnavailable)
+        writeError(w, http.StatusServiceUnavailable, "docker daemon unreachable")
         return
     }
 
     params, err := parseDigestParams(r)
     if err != nil {
-        http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+        writeError(w, http.StatusBadRequest, err.Error())
         return
     }
 
@@ -397,7 +396,7 @@ func (h *LogHandler) BulkDigest(w http.ResponseWriter, r *http.Request) {
     containers, err := h.dclient.ListContainers(listCtx)
     listCancel()
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        writeError(w, http.StatusInternalServerError, "failed to list containers")
         return
     }
 
@@ -409,7 +408,12 @@ func (h *LogHandler) BulkDigest(w http.ResponseWriter, r *http.Request) {
         filtered = append(filtered, c)
     }
 
-    results := h.scanAllContainers(r.Context(), filtered, params, concurrency)
+    // Bound overall fan-out latency: each container scan also has its own 20s
+    // timeout, but without this wrapper a large fleet could still serially
+    // chew through ~(n/concurrency)*20s before the handler returns.
+    scanCtx, scanCancel := context.WithTimeout(r.Context(), 60*time.Second)
+    defer scanCancel()
+    results := h.scanAllContainers(scanCtx, filtered, params, concurrency)
 
     totalErrors := 0
     totalWarns := 0
@@ -504,9 +508,20 @@ func (h *LogHandler) BulkDigest(w http.ResponseWriter, r *http.Request) {
     _, _ = w.Write(body)
 }
 
+// Caps on user-supplied regex input to keep compileORRegex bounded.
+// A large or pathological pattern list can otherwise burn CPU/memory at
+// compile time (and at match time across long log streams).
+const (
+    maxRegexInputBytes = 1024
+    maxRegexPatterns   = 32
+)
+
 // compileORRegex takes a comma-separated list of regex fragments and
 // compiles them into a single case-insensitive alternation pattern.
 func compileORRegex(commaList string) (*regexp.Regexp, error) {
+    if len(commaList) > maxRegexInputBytes {
+        return nil, fmt.Errorf("pattern list too long (max %d bytes)", maxRegexInputBytes)
+    }
     parts := strings.Split(commaList, ",")
     cleaned := make([]string, 0, len(parts))
     for _, p := range parts {
@@ -518,6 +533,9 @@ func compileORRegex(commaList string) (*regexp.Regexp, error) {
     }
     if len(cleaned) == 0 {
         return nil, fmt.Errorf("no patterns provided")
+    }
+    if len(cleaned) > maxRegexPatterns {
+        return nil, fmt.Errorf("too many patterns (max %d)", maxRegexPatterns)
     }
     pattern := "(?i)(" + strings.Join(cleaned, "|") + ")"
     return regexp.Compile(pattern)
