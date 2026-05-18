@@ -225,3 +225,129 @@ func TestOriginCheckMiddleware_POST_RefererFallback(t *testing.T) {
         t.Errorf("expected 200 with valid referer, got %d", w.Code)
     }
 }
+
+func TestAuthMiddleware_BearerToken_Valid(t *testing.T) {
+    t.Setenv("API_TOKEN", "secret-test-token")
+    sm := NewSessionManager(1 * time.Hour)
+
+    var ctxUsername string
+    var ctxIsAgent bool
+    handler := sm.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        ctxUsername, _ = UsernameFromContext(r.Context())
+        ctxIsAgent = sm.IsAgentRequest(r.Context())
+        w.WriteHeader(http.StatusOK)
+    }))
+
+    req := httptest.NewRequest("GET", "/api/test", nil)
+    req.Header.Set("Authorization", "Bearer secret-test-token")
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    if w.Code != http.StatusOK {
+        t.Errorf("expected 200 with valid bearer token, got %d", w.Code)
+    }
+    if ctxUsername != "agent" {
+        t.Errorf("expected context username 'agent', got %q", ctxUsername)
+    }
+    if !ctxIsAgent {
+        t.Error("expected IsAgentRequest to be true for bearer-authenticated request")
+    }
+}
+
+func TestAuthMiddleware_BearerToken_Invalid(t *testing.T) {
+    t.Setenv("API_TOKEN", "secret-test-token")
+    sm := NewSessionManager(1 * time.Hour)
+
+    called := false
+    handler := sm.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        called = true
+        w.WriteHeader(http.StatusOK)
+    }))
+
+    req := httptest.NewRequest("GET", "/api/test", nil)
+    req.Header.Set("Authorization", "Bearer wrong")
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    if w.Code != http.StatusUnauthorized {
+        t.Errorf("expected 401 with invalid bearer token, got %d", w.Code)
+    }
+    if called {
+        t.Error("downstream handler should not be called for invalid bearer token")
+    }
+}
+
+func TestRejectAgentMiddleware_BlocksAgent(t *testing.T) {
+    t.Setenv("API_TOKEN", "secret-test-token")
+    sm := NewSessionManager(1 * time.Hour)
+
+    called := false
+    inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        called = true
+        w.WriteHeader(http.StatusOK)
+    })
+    handler := sm.AuthMiddleware(RejectAgentMiddleware(inner))
+
+    req := httptest.NewRequest("POST", "/api/auth/2fa/setup", nil)
+    req.Header.Set("Authorization", "Bearer secret-test-token")
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    if w.Code != http.StatusForbidden {
+        t.Errorf("expected 403 for bearer-auth on session-only route, got %d", w.Code)
+    }
+    if called {
+        t.Error("downstream handler must not run for bearer-auth requests")
+    }
+    if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+        t.Errorf("expected Content-Type=application/json, got %q", ct)
+    }
+}
+
+func TestRejectAgentMiddleware_AllowsSession(t *testing.T) {
+    sm := NewSessionManager(1 * time.Hour)
+    sid, _ := sm.CreateSession("admin")
+
+    called := false
+    inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        called = true
+        w.WriteHeader(http.StatusOK)
+    })
+    handler := sm.AuthMiddleware(RejectAgentMiddleware(inner))
+
+    req := httptest.NewRequest("POST", "/api/auth/2fa/setup", nil)
+    req.AddCookie(&http.Cookie{Name: "session", Value: sid})
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    if w.Code != http.StatusOK {
+        t.Errorf("expected 200 for session-auth on session-only route, got %d", w.Code)
+    }
+    if !called {
+        t.Error("downstream handler should run for session-auth requests")
+    }
+}
+
+func TestAuthMiddleware_BearerToken_DisabledWhenUnset(t *testing.T) {
+    // Explicitly clear API_TOKEN to ensure bearer auth is disabled.
+    t.Setenv("API_TOKEN", "")
+    sm := NewSessionManager(1 * time.Hour)
+
+    called := false
+    handler := sm.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        called = true
+        w.WriteHeader(http.StatusOK)
+    }))
+
+    req := httptest.NewRequest("GET", "/api/test", nil)
+    req.Header.Set("Authorization", "Bearer anything")
+    w := httptest.NewRecorder()
+    handler.ServeHTTP(w, req)
+
+    if w.Code != http.StatusUnauthorized {
+        t.Errorf("expected 401 when API_TOKEN unset, got %d", w.Code)
+    }
+    if called {
+        t.Error("downstream handler should not be called when bearer auth is disabled")
+    }
+}

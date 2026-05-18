@@ -10,6 +10,9 @@ services:
       - app.env
     environment:
       - DATA_DIR=/data
+      # Optional: enable bearer-token auth for read-only agent access.
+      # Generate with: openssl rand -hex 32
+      # - API_TOKEN=${API_TOKEN}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]

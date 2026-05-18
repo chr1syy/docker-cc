@@ -29,6 +29,8 @@ Docker CC is a lightweight, self-hosted Docker container dashboard with a Go bac
 │  ├─ /api/containers/*  CRUD + actions           │
 │  ├─ /api/stats/stream  WebSocket live stats     │
 │  ├─ /api/stats/history Buffered stats history   │
+│  ├─ /api/status        Agent health digest      │
+│  ├─ /api/logs/digest   Bulk log error scanner   │
 │  ├─ /api/*/logs/stream WebSocket log streaming  │
 │  └─ /*                 Static file server (SPA) │
 └──────────────┬──────────────────────────────────┘
@@ -104,13 +106,16 @@ frontend/
 ### Protected (requires auth session)
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/status` | Aggregated health: container state counts + log errors digest (agent-friendly) |
 | GET | `/api/containers` | List all containers |
 | GET | `/api/containers/{id}` | Inspect container |
 | GET | `/api/containers/{id}/logs` | Fetch container logs |
 | GET | `/api/containers/{id}/logs/stream` | WebSocket log streaming |
+| GET | `/api/containers/{id}/logs/digest` | Filtered error/warn digest with samples over a time window |
 | GET | `/api/containers/{id}/stats` | One-shot container stats |
 | GET | `/api/stats/stream` | WebSocket live stats for all containers |
 | GET | `/api/stats/history` | Buffered stats history (~5 min ring buffer) |
+| GET | `/api/logs/digest` | Aggregated error/warn digest across all running containers (256 KB cap) |
 
 ### Protected + Actions enabled (`ALLOW_ACTIONS=true`)
 | Method | Path | Description |
@@ -143,6 +148,7 @@ frontend/
 - Security headers and origin checking on all API routes
 - Version injected at build time via `-ldflags "-X main.Version=..."`
 - Stats are collected by a background goroutine every 2s from server start, stored in an in-memory ring buffer (150 points per container, ~5 min). Frontend hydrates from `/api/stats/history` on auth, then continues via WebSocket for real-time updates.
+- The agent API (`/api/status`, `/api/logs/digest`, `/api/containers/{id}/logs/digest`) accepts either session cookies or `Authorization: Bearer <API_TOKEN>`. Bearer-auth requests are read-only — container action middleware (`RequireActions`) rejects them.
 
 ### Frontend (SvelteKit)
 
@@ -164,6 +170,7 @@ frontend/
 - Optional TOTP 2FA with encrypted secret storage on disk (`DATA_DIR`)
 - Container actions gated behind `ALLOW_ACTIONS=true` (off by default)
 - bcrypt password hashing (plaintext `ADMIN_PASSWORD` hashed at startup)
+- Optional `API_TOKEN` for agent/programmatic read-only access — read-only even when actions are enabled
 - Security headers on all API responses
 
 ## Environment Variables
@@ -180,6 +187,7 @@ frontend/
 | `ADMIN_PASSWORD_HASH` | — | Pre-hashed bcrypt password (alternative to `ADMIN_PASSWORD`) |
 | `ADMIN_USER` | `admin` | Admin username |
 | `ALLOW_ACTIONS` | `false` | Enable container start/stop/restart/remove actions |
+| `API_TOKEN` | — | If set, enables bearer-token authentication for read-only API access. Send `Authorization: Bearer <token>`. Container actions remain rejected even with `ALLOW_ACTIONS=true`. |
 | `SESSION_TTL` | `24h` | Session duration |
 | `STATIC_DIR` | `./static` | Path to frontend static build |
 | `DATA_DIR` | `./data` | Persistent data directory (2FA secrets, etc.) |

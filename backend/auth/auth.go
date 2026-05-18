@@ -3,8 +3,10 @@ package auth
 import (
     "context"
     "crypto/rand"
+    "crypto/subtle"
     "encoding/hex"
     "errors"
+    "log"
     "net/http"
     "os"
     "strconv"
@@ -23,6 +25,7 @@ type SessionManager struct {
     sessions sync.Map // map[string]sessionData
     ttl      time.Duration
     totp     *TOTPManager
+    apiToken string
 }
 
 func NewSessionManager(ttl time.Duration) *SessionManager {
@@ -41,6 +44,10 @@ func NewSessionManager(ttl time.Duration) *SessionManager {
     }
 
     sm := &SessionManager{ttl: ttl}
+    if tok := os.Getenv("API_TOKEN"); tok != "" {
+        sm.apiToken = tok
+        log.Println("API token authentication enabled")
+    }
     go sm.cleanupLoop()
     return sm
 }
@@ -101,6 +108,7 @@ func (s *SessionManager) CleanExpired() {
 type contextKey string
 
 const usernameContextKey contextKey = "auth_username"
+const agentContextKey contextKey = "auth_is_agent"
 
 // AuthMiddleware enforces session-based authentication. It expects a cookie named
 // "session" containing a session ID. On success it stores the username in the
@@ -108,6 +116,26 @@ const usernameContextKey contextKey = "auth_username"
 // it responds with 401.
 func (s *SessionManager) AuthMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Bearer-token path: only active when API_TOKEN is configured.
+        if authz := r.Header.Get("Authorization"); strings.HasPrefix(authz, "Bearer ") {
+            if s.apiToken == "" {
+                http.Error(w, "unauthorized", http.StatusUnauthorized)
+                return
+            }
+            token := strings.TrimPrefix(authz, "Bearer ")
+            // Constant-time compare, but only after a length check —
+            // ConstantTimeCompare requires equal lengths to be meaningful.
+            if len(token) != len(s.apiToken) ||
+                subtle.ConstantTimeCompare([]byte(token), []byte(s.apiToken)) != 1 {
+                http.Error(w, "unauthorized", http.StatusUnauthorized)
+                return
+            }
+            ctx := context.WithValue(r.Context(), usernameContextKey, "agent")
+            ctx = context.WithValue(ctx, agentContextKey, true)
+            next.ServeHTTP(w, r.WithContext(ctx))
+            return
+        }
+
         c, err := r.Cookie("session")
         if err != nil || c.Value == "" {
             http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -121,6 +149,23 @@ func (s *SessionManager) AuthMiddleware(next http.Handler) http.Handler {
         // Attach username to context and continue
         ctx := context.WithValue(r.Context(), usernameContextKey, username)
         next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+
+// RejectAgentMiddleware blocks bearer-token (agent) requests from reaching
+// the wrapped handler. Used to gate session-only routes (e.g. 2FA setup /
+// disable, secret material) so an `API_TOKEN`-authenticated agent can never
+// reach them even when AuthMiddleware has otherwise accepted the request.
+// Must run after AuthMiddleware so the agentContextKey value is present.
+func RejectAgentMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if v, ok := r.Context().Value(agentContextKey).(bool); ok && v {
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusForbidden)
+            _, _ = w.Write([]byte(`{"error":"forbidden: session login required"}`))
+            return
+        }
+        next.ServeHTTP(w, r)
     })
 }
 
@@ -178,4 +223,19 @@ func UsernameFromContext(ctx context.Context) (string, bool) {
     }
     u, ok := v.(string)
     return u, ok
+}
+
+// IsAgentRequest reports whether the request was authenticated via API token
+// (i.e. bearer auth) rather than a user session cookie. Used to gate mutating
+// operations: agent tokens are read-only.
+func (s *SessionManager) IsAgentRequest(ctx context.Context) bool {
+    v, ok := ctx.Value(agentContextKey).(bool)
+    return ok && v
+}
+
+// AgentContextKey exposes the package-private context key used to mark agent
+// (bearer-token) requests, so other packages can read it from a request context
+// without depending on a SessionManager instance.
+func AgentContextKey() contextKey {
+    return agentContextKey
 }

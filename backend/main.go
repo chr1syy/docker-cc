@@ -54,6 +54,8 @@ func main() {
     lh := handlers.NewLogHandler(dclient)
     // Stats routes
     sh := handlers.NewStatsHandler(dclient)
+    // Aggregated status (agent-friendly health endpoint)
+    stath := handlers.NewStatusHandler(dclient, Version, lh)
 
     // If ADMIN_PASSWORD is set (plaintext), hash it and set ADMIN_PASSWORD_HASH
     // so the login handler can use it. This avoids bcrypt $ escaping issues in Docker Compose.
@@ -124,6 +126,9 @@ func main() {
                 r.Get("/containers/{id}", ch.Inspect)
                 r.Get("/containers/{id}/logs", lh.Get)
                 r.Get("/containers/{id}/logs/stream", lh.WS)
+                r.Get("/containers/{id}/logs/digest", lh.Digest)
+                r.Get("/logs/digest", lh.BulkDigest)
+                r.Get("/status", stath.Get)
                 r.Get("/stats/stream", sh.WS)
                 r.Get("/stats/history", sh.History)
                 r.Get("/containers/{id}/stats", sh.OneShot)
@@ -133,11 +138,16 @@ func main() {
                 r.With(handlers.RequireActions).Post("/containers/{id}/restart", ch.Restart)
                 r.With(handlers.RequireActions).Delete("/containers/{id}", ch.Remove)
 
-                // 2FA management (requires active session)
-                r.Get("/auth/2fa/status", sm.TwoFAStatusHandler)
-                r.Post("/auth/2fa/setup", sm.TwoFASetupHandler)
-                r.Post("/auth/2fa/confirm", sm.TwoFAConfirmHandler)
-                r.Post("/auth/2fa/disable", sm.TwoFADisableHandler)
+                // 2FA management (requires active session — bearer tokens
+                // are read-only and must never reach setup/confirm/disable
+                // which can generate or rotate TOTP secrets).
+                r.Group(func(r chi.Router) {
+                    r.Use(authpkg.RejectAgentMiddleware)
+                    r.Get("/auth/2fa/status", sm.TwoFAStatusHandler)
+                    r.Post("/auth/2fa/setup", sm.TwoFASetupHandler)
+                    r.Post("/auth/2fa/confirm", sm.TwoFAConfirmHandler)
+                    r.Post("/auth/2fa/disable", sm.TwoFADisableHandler)
+                })
             })
     })
 

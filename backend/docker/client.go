@@ -93,7 +93,7 @@ func (d *Client) RemoveContainer(ctx context.Context, id string) error {
 type LogOptions struct {
     Since      string  // RFC3339 timestamp
     Until      string  // RFC3339 timestamp
-    Tail       int     // number of lines (default 500 when zero)
+    Tail       int     // number of lines; 0 means unbounded ("all") — use Since to bound the window
     Follow     bool    // stream
     Timestamps *bool   // include timestamps (default true when nil)
 }
@@ -105,8 +105,8 @@ func (d *Client) GetContainerLogs(ctx context.Context, containerID string, opts 
         return nil, fmt.Errorf("docker client unavailable")
     }
 
-    tail := "500"
-    if opts.Tail != 0 {
+    tail := "all"
+    if opts.Tail > 0 {
         tail = fmt.Sprintf("%d", opts.Tail)
     }
 
