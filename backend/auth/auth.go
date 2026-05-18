@@ -152,6 +152,23 @@ func (s *SessionManager) AuthMiddleware(next http.Handler) http.Handler {
     })
 }
 
+// RejectAgentMiddleware blocks bearer-token (agent) requests from reaching
+// the wrapped handler. Used to gate session-only routes (e.g. 2FA setup /
+// disable, secret material) so an `API_TOKEN`-authenticated agent can never
+// reach them even when AuthMiddleware has otherwise accepted the request.
+// Must run after AuthMiddleware so the agentContextKey value is present.
+func RejectAgentMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if v, ok := r.Context().Value(agentContextKey).(bool); ok && v {
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusForbidden)
+            _, _ = w.Write([]byte(`{"error":"forbidden: session login required"}`))
+            return
+        }
+        next.ServeHTTP(w, r)
+    })
+}
+
 // SecurityHeadersMiddleware applies strict security-related headers to every response.
 func SecurityHeadersMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

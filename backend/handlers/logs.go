@@ -267,6 +267,11 @@ func (h *LogHandler) Digest(w http.ResponseWriter, r *http.Request) {
 }
 
 // containerDigest is a single per-container entry in a bulk digest response.
+//
+// ScanError is set when the per-container scan could not run (e.g. log fetch
+// failed, container vanished, deadline exceeded). Callers — notably the
+// status handler — treat a non-empty ScanError as an unhealthy signal so
+// scan failures do not silently masquerade as "no errors".
 type containerDigest struct {
     Container    string              `json:"container"`
     ContainerID  string              `json:"container_id"`
@@ -276,6 +281,7 @@ type containerDigest struct {
     LastErrorAt  string              `json:"last_error_at,omitempty"`
     Samples      []docker.DigestLine `json:"samples"`
     Truncated    bool                `json:"truncated"`
+    ScanError    string              `json:"scan_error,omitempty"`
 }
 
 // scanAllContainers fans out the per-container log scanner across the
@@ -316,6 +322,7 @@ func (h *LogHandler) scanAllContainers(ctx context.Context, containers []dockert
 
             rc, err := h.dclient.LogsSince(scanCtx, c.ID, params.since)
             if err != nil {
+                cd.ScanError = err.Error()
                 results[i] = cd
                 return
             }

@@ -138,11 +138,16 @@ func main() {
                 r.With(handlers.RequireActions).Post("/containers/{id}/restart", ch.Restart)
                 r.With(handlers.RequireActions).Delete("/containers/{id}", ch.Remove)
 
-                // 2FA management (requires active session)
-                r.Get("/auth/2fa/status", sm.TwoFAStatusHandler)
-                r.Post("/auth/2fa/setup", sm.TwoFASetupHandler)
-                r.Post("/auth/2fa/confirm", sm.TwoFAConfirmHandler)
-                r.Post("/auth/2fa/disable", sm.TwoFADisableHandler)
+                // 2FA management (requires active session — bearer tokens
+                // are read-only and must never reach setup/confirm/disable
+                // which can generate or rotate TOTP secrets).
+                r.Group(func(r chi.Router) {
+                    r.Use(authpkg.RejectAgentMiddleware)
+                    r.Get("/auth/2fa/status", sm.TwoFAStatusHandler)
+                    r.Post("/auth/2fa/setup", sm.TwoFASetupHandler)
+                    r.Post("/auth/2fa/confirm", sm.TwoFAConfirmHandler)
+                    r.Post("/auth/2fa/disable", sm.TwoFADisableHandler)
+                })
             })
     })
 

@@ -42,6 +42,7 @@ type statusIssue struct {
     LastErrorAt string              `json:"last_error_at,omitempty"`
     Since       string              `json:"since,omitempty"`
     Samples     []docker.DigestLine `json:"samples,omitempty"`
+    Error       string              `json:"error,omitempty"`
 }
 
 type statusResponse struct {
@@ -178,6 +179,17 @@ func (h *StatusHandler) Get(w http.ResponseWriter, r *http.Request) {
             }, 5)
             scanCancel()
             for _, d := range digests {
+                // A failed scan must not be silently treated as a healthy
+                // container with zero errors. Surface it as a separate issue
+                // kind that flips the overall status to unhealthy below.
+                if d.ScanError != "" {
+                    issues = append(issues, statusIssue{
+                        Container: d.Container,
+                        Kind:      "scan_failed",
+                        Error:     d.ScanError,
+                    })
+                    continue
+                }
                 if d.ErrorCount == 0 {
                     continue
                 }
@@ -205,6 +217,10 @@ func (h *StatusHandler) Get(w http.ResponseWriter, r *http.Request) {
         counts.Restarting == 0
     if healthy {
         for _, i := range issues {
+            if i.Kind == "scan_failed" {
+                healthy = false
+                break
+            }
             if i.Kind == "log_errors" && i.ErrorCount > 0 {
                 healthy = false
                 break
