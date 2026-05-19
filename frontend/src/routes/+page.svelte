@@ -245,8 +245,12 @@
 
   /* Table */
   .table-card { padding: 0; overflow-x: auto; }
-  .containers-table { margin: 0; }
-  .containers-table th { padding: 14px 16px; background: rgba(255,255,255,0.01); }
+  /* position:sticky on <td>/<th> only works with border-collapse: separate.
+     The global stylesheet sets border-collapse: collapse, which silently
+     breaks sticky cells. Restore the visual look by setting border-spacing
+     to 0 and keeping the existing per-cell border-bottom rule. */
+  .containers-table { margin: 0; border-collapse: separate; border-spacing: 0; }
+  .containers-table th { padding: 14px 16px; background: #14171f; }
   .containers-table td { padding: 14px 16px; }
 
   /* Keep the actions column visible even when the table scrolls horizontally
@@ -255,10 +259,10 @@
   .containers-table td:last-child {
     position: sticky;
     right: 0;
-    background: var(--surface);
     box-shadow: -8px 0 12px -8px rgba(0, 0, 0, 0.5);
     z-index: 1;
   }
+  .containers-table td:last-child { background: var(--surface); }
   .containers-table th:last-child { background: #14171f; }
   .containers-table tr:hover td:last-child { background: #161a24; }
 
