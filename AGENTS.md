@@ -5,7 +5,7 @@
 Docker CC is a lightweight, self-hosted Docker container dashboard with a Go backend and SvelteKit frontend. It provides real-time container monitoring, log viewing, and container lifecycle management behind single-user authentication with optional 2FA (TOTP).
 
 **Repository:** `ghcr.io/chr1syy/docker-cc`
-**Current version:** 0.1.0
+**Current version:** 0.5.0
 **License:** MIT
 
 ## Tech Stack
@@ -54,11 +54,13 @@ backend/
     client_test.go       # Integration tests (build tag: integration)
     client_unit_test.go  # Unit tests
     stats.go             # Stats parsing, concurrent stats fetching
+    scanner.go           # Memory-bounded log scanner for agent digest endpoints
   handlers/
     containers.go        # Container list/inspect/action handlers (start, stop, restart, remove)
-    logs.go              # Log fetch and WebSocket streaming
+    logs.go              # Log fetch + digest (per-container, bulk) + WebSocket streaming
     stats.go             # Stats one-shot, WebSocket streaming, history endpoint, background collector
     statsbuffer.go       # Thread-safe per-container ring buffer for metrics history (150 points / ~5 min)
+    status.go            # Aggregated health summary endpoint (agent-friendly)
     response.go          # JSON response helpers
 
 frontend/
