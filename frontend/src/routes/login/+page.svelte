@@ -264,4 +264,12 @@
     transition: all 150ms ease;
   }
   .back-btn:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+
+  @media (max-width: 480px) {
+    .login-card { padding: 28px 20px; }
+    .totp-inputs { gap: 6px; }
+    /* Six digits + five gaps must comfortably fit a 320px viewport
+       inside the card's horizontal padding. */
+    .totp-digit { width: clamp(36px, 12vw, 48px); height: 52px; font-size: 20px; }
+  }
 </style>

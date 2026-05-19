@@ -143,6 +143,11 @@ a:hover { color: var(--accent-hover); }
 .main {
   padding: 28px 32px;
   max-width: 1400px;
+  /* Grid items default to min-width: auto, which prevents shrinking below
+     the intrinsic min-content width of descendants. Without this, wide
+     table content (nowrap cells) pushes .main past its 1fr share and
+     causes the whole app-grid to overflow the viewport. */
+  min-width: 0;
 }
 
 /* Header bar */

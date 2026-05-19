@@ -301,12 +301,60 @@
     .stat-cards { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 768px) {
-    .page-header { flex-direction: column; }
+    .page-header { flex-direction: column; align-items: stretch; }
+    .search-wrap { width: 100%; }
     .search-input { width: 100%; }
     .stat-cards { grid-template-columns: repeat(2, 1fr); }
-    .containers-table, .containers-table thead, .containers-table tbody, .containers-table th, .containers-table td, .containers-table tr { display: block; width: 100%; }
+
+    /* Rebuild each row as a card with a 2-column grid:
+       a small status-dot rail on the left, content on the right. */
+    .containers-table,
+    .containers-table thead,
+    .containers-table tbody { display: block; }
     .containers-table thead { display: none; }
-    .containers-table tr { padding: 14px 16px; border-bottom: 1px solid var(--border); }
-    .containers-table td { display: flex; justify-content: space-between; padding: 4px 0; border: none; }
+    .table-card { overflow-x: visible; }
+
+    .containers-table tr {
+      display: grid;
+      grid-template-columns: 14px 1fr auto;
+      grid-template-areas:
+        "dot   name    status"
+        "dot   image   image"
+        ".     cpu     memory"
+        ".     actions actions";
+      column-gap: 10px;
+      row-gap: 8px;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .containers-table tr:last-child { border-bottom: none; }
+    .containers-table tr:hover td { background: transparent; }
+
+    .containers-table td {
+      display: block;
+      padding: 0;
+      border: none;
+    }
+    .containers-table td:nth-child(1) { grid-area: dot; align-self: start; padding-top: 4px; }
+    .containers-table td:nth-child(2) { grid-area: name; font-size: 15px; }
+    .containers-table td:nth-child(3) { grid-area: image; font-size: 11px; word-break: break-all; }
+    .containers-table td:nth-child(4) { grid-area: status; justify-self: end; }
+    .containers-table td:nth-child(5) { grid-area: cpu; }
+    .containers-table td:nth-child(6) { grid-area: memory; justify-self: end; }
+    .containers-table td:nth-child(9) {
+      grid-area: actions;
+      padding-top: 4px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .containers-table td:nth-child(9) .action-group {
+      justify-content: flex-end;
+      padding-top: 8px;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .stat-cards { grid-template-columns: 1fr; }
+    .containers-table tr { padding: 14px; }
   }
 </style>

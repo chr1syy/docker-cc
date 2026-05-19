@@ -114,20 +114,31 @@
   .controls label { font-size:12px; color:var(--text-secondary, #94a3b8); display:flex; align-items:center; gap:4px }
   .controls button { background:transparent; border:1px solid var(--border); color:var(--text-secondary); padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; transition:all 150ms ease }
   .controls button:hover { background:rgba(255,255,255,0.04); color:var(--text); border-color:var(--text-muted) }
+  .search-input { flex: 1 1 200px; min-width: 0 }
+  .right-actions { display: flex; align-items: center; gap: 8px; margin-left: auto }
   .log-window { height:600px; overflow:auto; background:var(--bg, #0b0e14); border:1px solid var(--border); border-radius:var(--radius-sm, 6px); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace; font-size:12px; }
-  .line { display:flex; gap:8px; padding:2px 10px; align-items:flex-start; white-space:pre-wrap; word-break:break-word }
+  .line { display:flex; gap:8px; padding:2px 10px; align-items:flex-start; white-space:pre-wrap; word-break:break-word; overflow-wrap: anywhere }
   .line:hover { background:rgba(255,255,255,0.02) }
   .ts { color:var(--text-muted, #64748b); white-space:nowrap; flex-shrink:0; font-size:11px }
   .stream { width:6px; height:6px; border-radius:50%; margin-top:6px; flex-shrink:0 }
   .stdout { background:var(--accent) }
   .stderr { background:var(--danger) }
-  .msg { flex:1; min-width:0 }
+  .msg { flex:1; min-width:0; word-break: break-all; overflow-wrap: anywhere }
   .live-badge { background: rgba(16,185,129,0.12); color:var(--success, #10b981); padding:4px 10px; border-radius:999px; font-size:11px; font-weight:600; animation:pulse 2s ease-in-out infinite }
   @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.6 } }
   @media (max-width:768px) {
-    .controls { gap:6px }
-    .log-window { height:400px; font-size:11px }
+    .controls { gap:6px 8px }
+    .controls label { font-size: 11px }
+    .controls select, .controls input[type="text"], .controls input[type="datetime-local"] { padding: 8px 10px; font-size: 13px; min-height: 36px }
+    .controls button { padding: 8px 12px; font-size: 13px; min-height: 36px }
+    .search-input { flex-basis: 100% }
+    .right-actions { margin-left: 0; flex: 0 0 100%; justify-content: flex-end }
+    .log-window { height: 60vh; min-height: 320px; font-size: 11px }
     .ts { display:none }
+    .line { padding: 4px 10px }
+  }
+  @media (max-width: 420px) {
+    .log-window { height: 55vh; min-height: 280px }
   }
 </style>
 
@@ -145,7 +156,7 @@
       <label>Until <input type="datetime-local" bind:value={customUntil} on:change={loadOnce} /></label>
     {/if}
 
-    <input type="text" placeholder="Search logs..." bind:value={filterText} on:keydown={(e)=>{ if (e.key==='Enter') loadOnce(); }} />
+    <input type="text" class="search-input" placeholder="Search logs..." bind:value={filterText} on:keydown={(e)=>{ if (e.key==='Enter') loadOnce(); }} />
     <label><input type="checkbox" bind:checked={stderrOnly} on:change={loadOnce} /> stderr only</label>
     <label>Tail
       <select bind:value={tail} on:change={loadOnce}>
@@ -156,9 +167,11 @@
       </select>
     </label>
     <label><input type="checkbox" bind:checked={showTimestamps} /> show timestamps</label>
-    <label style="margin-left:auto"><button on:click={() => { live = !live; }}>{live ? 'Stop Live' : 'Live'}</button></label>
-    {#if live}<div class="live-badge">Live</div>{/if}
-    <button on:click={loadOnce}>Refresh</button>
+    <div class="right-actions">
+      <button on:click={() => { live = !live; }}>{live ? 'Stop Live' : 'Live'}</button>
+      {#if live}<div class="live-badge">Live</div>{/if}
+      <button on:click={loadOnce}>Refresh</button>
+    </div>
   </div>
 
   <div bind:this={containerEl} class="log-window">

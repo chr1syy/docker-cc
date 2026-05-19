@@ -419,4 +419,24 @@
     padding-top: 20px;
     border-top: 1px solid var(--border);
   }
+
+  @media (max-width: 768px) {
+    .totp-inputs { gap: 6px; }
+    /* 6 digits + 5 gaps must fit common 320px viewports with card padding */
+    .totp-digit { width: clamp(36px, 12vw, 48px); height: 52px; font-size: 20px; }
+    .setup-actions {
+      flex-direction: column-reverse;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    .setup-actions .btn-primary,
+    .setup-actions .btn-secondary { width: 100%; }
+    .disable-section .btn-danger { width: 100%; }
+    .qr-container { padding: 12px; }
+    .secret-key {
+      letter-spacing: 1px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+  }
 </style>

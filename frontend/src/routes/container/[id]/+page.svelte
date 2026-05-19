@@ -119,37 +119,41 @@
   <!-- Network -->
   <div class="card section">
     <h3>Network</h3>
-    <table>
-      <thead><tr><th>Network</th><th>IP Address</th><th>Gateway</th><th>Ports</th></tr></thead>
-      <tbody>
-        {#each Object.entries(detail.networkSettings?.Networks ?? {}) as [name, net]}
-          <tr>
-            <td>{name}</td>
-            <td class="mono">{net?.IPAddress ?? '-'}</td>
-            <td class="mono">{net?.Gateway ?? '-'}</td>
-            <td>{detail.ports ? detail.ports.join(', ') : '-'}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Network</th><th>IP Address</th><th>Gateway</th><th>Ports</th></tr></thead>
+        <tbody>
+          {#each Object.entries(detail.networkSettings?.Networks ?? {}) as [name, net]}
+            <tr>
+              <td>{name}</td>
+              <td class="mono">{net?.IPAddress ?? '-'}</td>
+              <td class="mono">{net?.Gateway ?? '-'}</td>
+              <td class="mono break">{detail.ports ? detail.ports.join(', ') : '-'}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Mounts -->
   {#if detail.mounts && detail.mounts.length}
   <div class="card section">
     <h3>Mounts</h3>
-    <table>
-      <thead><tr><th>Source</th><th>Destination</th><th>Mode</th></tr></thead>
-      <tbody>
-        {#each detail.mounts as m}
-          <tr>
-            <td class="mono">{m.Source}</td>
-            <td class="mono">{m.Destination}</td>
-            <td>{m.Mode || 'rw'}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Source</th><th>Destination</th><th>Mode</th></tr></thead>
+        <tbody>
+          {#each detail.mounts as m}
+            <tr>
+              <td class="mono break">{m.Source}</td>
+              <td class="mono break">{m.Destination}</td>
+              <td>{m.Mode || 'rw'}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
   {/if}
 
@@ -163,17 +167,19 @@
   {#if Object.keys(detail.config?.Labels ?? {}).length}
   <div class="card section">
     <h3>Labels</h3>
-    <table>
-      <thead><tr><th>Key</th><th>Value</th></tr></thead>
-      <tbody>
-        {#each Object.entries(detail.config?.Labels ?? {}) as [k, v]}
-          <tr>
-            <td class="mono">{k}</td>
-            <td>{v}</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Key</th><th>Value</th></tr></thead>
+        <tbody>
+          {#each Object.entries(detail.config?.Labels ?? {}) as [k, v]}
+            <tr>
+              <td class="mono break">{k}</td>
+              <td class="break">{v}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
   {/if}
 
@@ -185,19 +191,21 @@
         {showEnv ? 'Hide values' : 'Reveal values'}
       </button>
     </div>
-    <table>
-      <thead><tr><th>Variable</th><th>Value</th></tr></thead>
-      <tbody>
-        {#each (detail.config?.Env ?? []) as e}
-          {#if e}
-            <tr>
-              <td class="mono">{e.split('=')[0]}</td>
-              <td>{showEnv ? e.split('=').slice(1).join('=') : '•••••••'}</td>
-            </tr>
-          {/if}
-        {/each}
-      </tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Variable</th><th>Value</th></tr></thead>
+        <tbody>
+          {#each (detail.config?.Env ?? []) as e}
+            {#if e}
+              <tr>
+                <td class="mono break">{e.split('=')[0]}</td>
+                <td class="break">{showEnv ? e.split('=').slice(1).join('=') : '•••••••'}</td>
+              </tr>
+            {/if}
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
 
 {/if}
@@ -243,6 +251,7 @@
   .detail-meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: 8px;
     font-size: 13px;
@@ -252,18 +261,27 @@
     font-family: 'SF Mono', 'Fira Code', monospace;
     color: var(--text-muted);
     font-size: 12px;
+    word-break: break-all;
   }
   .meta-sep {
     width: 3px;
     height: 3px;
     border-radius: 50%;
     background: var(--text-muted);
+    flex-shrink: 0;
   }
   .detail-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     margin-top: 16px;
   }
+
+  /* Horizontal scroll wrapper for the metadata tables — long IPs, paths,
+     and env values would otherwise blow past the viewport on mobile. */
+  .table-scroll { overflow-x: auto; }
+  .table-scroll table { min-width: 100%; }
+  .break { word-break: break-all; }
 
   .section { margin-bottom: 16px; }
 
@@ -310,5 +328,9 @@
   @media (max-width: 768px) {
     .info-grid { grid-template-columns: 1fr; }
     .metrics-grid { grid-template-columns: 1fr; }
+    .detail-header { padding: 16px; }
+    .detail-title-row { flex-wrap: wrap; }
+    .detail-title-row h1 { font-size: 1.15rem; flex: 1 1 auto; min-width: 0; word-break: break-word; }
+    .section-header { flex-wrap: wrap; gap: 8px; }
   }
 </style>
