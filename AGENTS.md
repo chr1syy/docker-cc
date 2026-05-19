@@ -5,7 +5,7 @@
 Docker CC is a lightweight, self-hosted Docker container dashboard with a Go backend and SvelteKit frontend. It provides real-time container monitoring, log viewing, and container lifecycle management behind single-user authentication with optional 2FA (TOTP).
 
 **Repository:** `ghcr.io/chr1syy/docker-cc`
-**Current version:** 0.6.0
+**Current version:** 0.6.1
 **License:** MIT
 
 ## Tech Stack
