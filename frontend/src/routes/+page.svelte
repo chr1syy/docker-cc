@@ -154,7 +154,7 @@
                 </span>
               {:else}<span class="text-muted">-</span>{/if}
             </td>
-            <td class="hide-md">
+            <td class="hide-md port-cell" title={c.ports && c.ports.length ? c.ports.join(', ') : ''}>
               {#if c.ports && c.ports.length}
                 <span class="port-badges">{c.ports.join(', ')}</span>
               {:else}<span class="text-muted">-</span>{/if}
@@ -248,6 +248,29 @@
   .containers-table { margin: 0; }
   .containers-table th { padding: 14px 16px; background: rgba(255,255,255,0.01); }
   .containers-table td { padding: 14px 16px; }
+
+  /* Keep the actions column visible even when the table scrolls horizontally
+     (which happens once stats hydrate and Network/Ports widen). */
+  .containers-table th:last-child,
+  .containers-table td:last-child {
+    position: sticky;
+    right: 0;
+    background: var(--surface);
+    box-shadow: -8px 0 12px -8px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+  }
+  .containers-table th:last-child { background: #14171f; }
+  .containers-table tr:hover td:last-child { background: #161a24; }
+
+  /* Ports cell can render a comma-joined list — keep it on one line with
+     ellipsis so it doesn't push the row's height up. The title attribute on
+     the cell preserves the full list on hover. */
+  .port-cell {
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .name-cell a {
     color: var(--text);
@@ -350,6 +373,15 @@
     .containers-table td:nth-child(9) .action-group {
       justify-content: flex-end;
       padding-top: 8px;
+    }
+
+    /* Disable the desktop sticky-right rule on mobile — the table is reflowed
+       into cards here, so sticky positioning would only add visual noise. */
+    .containers-table th:last-child,
+    .containers-table td:last-child {
+      position: static;
+      background: transparent;
+      box-shadow: none;
     }
   }
 
