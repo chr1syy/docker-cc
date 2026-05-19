@@ -10,6 +10,8 @@ import (
     "net/http"
     "os"
     "os/signal"
+    "path/filepath"
+    "strings"
     "syscall"
     "time"
 
@@ -154,10 +156,30 @@ func main() {
     // Graceful shutdown
     srv := &http.Server{Addr: ":8080", Handler: r}
 
-    // Serve static files (SPA fallback handled by frontend in production build)
+    // Serve static files with SPA fallback. The SvelteKit build is produced
+    // by adapter-static with `fallback: 'index.html'`, so any path that
+    // doesn't resolve to a real file on disk should serve index.html and
+    // let the client-side router handle routing (e.g. /container/<id>).
+    // Without this fallback, hard navigation or refresh on a SPA route
+    // (and SvelteKit's prefetch HTTP probes) hits an http.FileServer 404.
+    // Paths that look like real asset requests (contain a "." in the last
+    // segment, e.g. /missing.js) still 404 so genuine missing-asset bugs
+    // aren't masked by serving HTML as JS.
     fs := http.FileServer(http.Dir(staticDir))
-    r.Handle("/", fs)
-    r.Handle("/*", fs)
+    spa := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        cleaned := filepath.Clean("/" + r.URL.Path)
+        if info, err := os.Stat(filepath.Join(staticDir, cleaned)); err == nil && !info.IsDir() {
+            fs.ServeHTTP(w, r)
+            return
+        }
+        if strings.Contains(filepath.Base(cleaned), ".") {
+            http.NotFound(w, r)
+            return
+        }
+        http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
+    })
+    r.Handle("/", spa)
+    r.Handle("/*", spa)
 
     // start server with graceful shutdown on SIGINT/SIGTERM
     go func() {
