@@ -28,7 +28,7 @@
 
   Verification: `export PATH=$PATH:/usr/local/go/bin && cd /home/chris/code/docker-cc/backend && go build ./...` succeeds.
 
-- [ ] **Feed the long buffer from the existing stats collector and wire persistence into the server lifecycle.**
+- [x] **Feed the long buffer from the existing stats collector and wire persistence into the server lifecycle.** _(Done 2026-07-01: `StatsHandler` gained a `memHistory *MemHistory` field; `NewStatsHandler(d, mh)` now takes it and `collect()` calls `Observe(ContainerName, MemoryUsage, MemoryLimit, now)` for each non-empty-named metric after `PushAll`, sharing one `time.Now()` per batch. In `main.go`, `dataDir` resolution was hoisted above the stats handler (and the later duplicate removed), `mh := handlers.NewMemHistory(dataDir)` is constructed and passed to `NewStatsHandler`, a 5-min flush ticker goroutine calls `mh.Save()` (logs errors), and the graceful-shutdown path calls `mh.Save()` once after `srv.Shutdown`. `go build ./...` + `go vet ./...` clean; `go test ./handlers/...` = 26 passed.)_
 
   In `backend/handlers/stats.go`:
   - Add a `memHistory *MemHistory` field to `StatsHandler` and a constructor param, OR (cleaner) pass an existing `*MemHistory` in. Update `NewStatsHandler` to accept `mh *MemHistory` and store it. Inside `collect()`, after `s.buffer.PushAll(metrics)`, loop the batch and call `s.memHistory.Observe(m.ContainerName, m.MemoryUsage, m.MemoryLimit, time.Now())` for each metric that has a non-empty `ContainerName`.

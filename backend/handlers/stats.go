@@ -14,14 +14,16 @@ import (
 )
 
 type StatsHandler struct {
-	dclient *docker.Client
-	buffer  *StatsBuffer
+	dclient    *docker.Client
+	buffer     *StatsBuffer
+	memHistory *MemHistory
 }
 
-func NewStatsHandler(d *docker.Client) *StatsHandler {
+func NewStatsHandler(d *docker.Client, mh *MemHistory) *StatsHandler {
 	h := &StatsHandler{
-		dclient: d,
-		buffer:  NewStatsBuffer(),
+		dclient:    d,
+		buffer:     NewStatsBuffer(),
+		memHistory: mh,
 	}
 	go h.collect()
 	return h
@@ -42,6 +44,14 @@ func (s *StatsHandler) collect() {
 			continue
 		}
 		s.buffer.PushAll(metrics)
+		if s.memHistory != nil {
+			now := time.Now()
+			for _, m := range metrics {
+				if m.ContainerName != "" {
+					s.memHistory.Observe(m.ContainerName, m.MemoryUsage, m.MemoryLimit, now)
+				}
+			}
+		}
 	}
 }
 

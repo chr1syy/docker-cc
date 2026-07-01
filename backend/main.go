@@ -54,8 +54,18 @@ func main() {
     ch := handlers.NewContainerHandler(dclient)
     // Log handlers
     lh := handlers.NewLogHandler(dclient)
+
+    // Resolve persistent data directory (shared with 2FA/TOTP below).
+    dataDir := os.Getenv("DATA_DIR")
+    if dataDir == "" {
+        dataDir = "./data"
+    }
+
+    // Long-horizon memory history buffer (persisted to DATA_DIR). Fed by the
+    // stats collector at one coarse sample per container per minute.
+    mh := handlers.NewMemHistory(dataDir)
     // Stats routes
-    sh := handlers.NewStatsHandler(dclient)
+    sh := handlers.NewStatsHandler(dclient, mh)
     // Aggregated status (agent-friendly health endpoint)
     stath := handlers.NewStatusHandler(dclient, Version, lh)
 
@@ -74,11 +84,7 @@ func main() {
     // SESSION_TTL can be set as a duration string (eg. "24h") or seconds
     sm := authpkg.NewSessionManager(0)
 
-    // Initialize 2FA (TOTP) support
-    dataDir := os.Getenv("DATA_DIR")
-    if dataDir == "" {
-        dataDir = "./data"
-    }
+    // Initialize 2FA (TOTP) support (reuses the resolved dataDir above).
     totpMgr, totpErr := authpkg.NewTOTPManager(dataDir)
     if totpErr != nil {
         log.Printf("warning: 2FA unavailable: %v", totpErr)
@@ -181,6 +187,18 @@ func main() {
     r.Handle("/", spa)
     r.Handle("/*", spa)
 
+    // Periodically flush the long-horizon memory history to disk so recent
+    // samples survive an unexpected restart. Errors are logged, never fatal.
+    flushTicker := time.NewTicker(5 * time.Minute)
+    defer flushTicker.Stop()
+    go func() {
+        for range flushTicker.C {
+            if err := mh.Save(); err != nil {
+                log.Printf("mem-history: periodic flush failed: %v", err)
+            }
+        }
+    }()
+
     // start server with graceful shutdown on SIGINT/SIGTERM
     go func() {
         log.Println("Starting server on :8080")
@@ -199,6 +217,10 @@ func main() {
     defer cancel()
     if err := srv.Shutdown(ctx); err != nil {
         log.Fatalf("shutdown failed: %v", err)
+    }
+    // Persist the newest memory-history samples before exiting.
+    if err := mh.Save(); err != nil {
+        log.Printf("mem-history: final flush failed: %v", err)
     }
     log.Println("server stopped")
 }
