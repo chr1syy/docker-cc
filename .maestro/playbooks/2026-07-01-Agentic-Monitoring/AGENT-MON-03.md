@@ -21,7 +21,9 @@
 
   Verification: `export PATH=$PATH:/usr/local/go/bin && cd /home/chris/code/docker-cc/backend && go test ./handlers/...` — all snapshot + memhistory + existing handler tests pass.
 
-- [ ] **Document the endpoint and its env in `CLAUDE.md` (symlinked to `AGENTS.md`).**
+- [x] **Document the endpoint and its env in `CLAUDE.md` (symlinked to `AGENTS.md`).**
+
+  > **Done (2026-07-01).** `CLAUDE.md` is a symlink to `AGENTS.md`, so all edits landed in `AGENTS.md` and appear identically through `CLAUDE.md`. Added the `/api/agent/snapshot` row at the top of the "Protected (requires auth session)" table (line 112), added a `/api/agent/snapshot   One-call agentic monitoring digest` line to the architecture ASCII route list just above `/api/status` (line 32), added a Backend (Go) convention bullet describing the 1/min-for-24h persisted `DATA_DIR/mem_history.json` memory buffer (line 155), and extended the existing bearer-auth note to list `/api/agent/snapshot` (line 156). Verified with `grep -n "agent/snapshot" AGENTS.md` (4 hits) and the same via the `CLAUDE.md` symlink.
 
   - In the "Protected (requires auth session)" endpoint table, add at the top (it is the marquee agent endpoint):
 

@@ -29,6 +29,7 @@ Docker CC is a lightweight, self-hosted Docker container dashboard with a Go bac
 │  ├─ /api/containers/*  CRUD + actions           │
 │  ├─ /api/stats/stream  WebSocket live stats     │
 │  ├─ /api/stats/history Buffered stats history   │
+│  ├─ /api/agent/snapshot One-call agentic monitoring digest │
 │  ├─ /api/status        Agent health digest      │
 │  ├─ /api/logs/digest   Bulk log error scanner   │
 │  ├─ /api/*/logs/stream WebSocket log streaming  │
@@ -108,6 +109,7 @@ frontend/
 ### Protected (requires auth session)
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/agent/snapshot` | One-call agent snapshot: per-container health/stats/mem-trend + recent errors + host mem/load |
 | GET | `/api/status` | Aggregated health: container state counts + log errors digest (agent-friendly) |
 | GET | `/api/containers` | List all containers |
 | GET | `/api/containers/{id}` | Inspect container |
@@ -150,7 +152,8 @@ frontend/
 - Security headers and origin checking on all API routes
 - Version injected at build time via `-ldflags "-X main.Version=..."`
 - Stats are collected by a background goroutine every 2s from server start, stored in an in-memory ring buffer (150 points per container, ~5 min). Frontend hydrates from `/api/stats/history` on auth, then continues via WebSocket for real-time updates.
-- The agent API (`/api/status`, `/api/logs/digest`, `/api/containers/{id}/logs/digest`) accepts either session cookies or `Authorization: Bearer <API_TOKEN>`. Bearer-auth requests are read-only — container action middleware (`RequireActions`) rejects them.
+- Long-horizon memory history is sampled at 1/min for 24h and persisted to `DATA_DIR/mem_history.json` (atomic write, loaded on startup, flushed every 5 min and on shutdown) to make memory-leak trends detectable from a single `/api/agent/snapshot` call.
+- The agent API (`/api/agent/snapshot`, `/api/status`, `/api/logs/digest`, `/api/containers/{id}/logs/digest`) accepts either session cookies or `Authorization: Bearer <API_TOKEN>`. Bearer-auth requests are read-only — container action middleware (`RequireActions`) rejects them.
 
 ### Frontend (SvelteKit)
 
