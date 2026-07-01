@@ -122,6 +122,13 @@ func (s *StatsHandler) OneShot(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(m)
 }
 
+// Latest returns the most recent buffered metrics snapshot for a container.
+// It delegates to the underlying StatsBuffer so callers (e.g. the agent
+// snapshot handler) can read current CPU/mem without a fresh Docker stats call.
+func (s *StatsHandler) Latest(containerID string) (docker.ContainerMetrics, bool) {
+	return s.buffer.Latest(containerID)
+}
+
 // History returns the buffered stats history for all containers.
 func (s *StatsHandler) History(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

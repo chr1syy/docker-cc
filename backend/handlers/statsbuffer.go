@@ -63,6 +63,19 @@ func (b *StatsBuffer) All() map[string][]docker.ContainerMetrics {
 	return out
 }
 
+// Latest returns the most recent metrics snapshot for a container, along with
+// a bool reporting whether any sample exists. It is used by the agent snapshot
+// handler to read current CPU/mem without opening a new Docker stats stream.
+func (b *StatsBuffer) Latest(containerID string) (docker.ContainerMetrics, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	buf := b.data[containerID]
+	if len(buf) == 0 {
+		return docker.ContainerMetrics{}, false
+	}
+	return buf[len(buf)-1], true
+}
+
 // Get returns the history for a single container.
 func (b *StatsBuffer) Get(containerID string) []docker.ContainerMetrics {
 	b.mu.RLock()

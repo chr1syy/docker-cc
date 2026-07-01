@@ -70,7 +70,9 @@ Notes: `health` is `"healthy"`/`"unhealthy"`/`"starting"`/`"none"`. `mem_trend` 
 
   Verification: `go build ./... && go test ./handlers/ -run HostInfo` passes.
 
-- [ ] **Create `backend/handlers/snapshot.go` with `SnapshotHandler` and `GET /api/agent/snapshot`.**
+- [x] **Create `backend/handlers/snapshot.go` with `SnapshotHandler` and `GET /api/agent/snapshot`.**
+
+  Done. Added `SnapshotHandler`/`NewSnapshotHandler` composing existing primitives (no duplication): state rollup mirrors `status.go`'s switch + `containerDisplayName`; current CPU/mem come from a new `(*StatsBuffer).Latest(id) (docker.ContainerMetrics, bool)` accessor delegated through `(*StatsHandler).Latest`; the 24h mem trend is `MemHistory.Trend(name)`; recent errors reuse `logh.scanAllContainers(..., limit:2, default regexes, window)` and map by container name. `Get` parses `window` (default `1h`, clamp `[1m,24h]`), pings Docker (2s → `docker:"disconnected"` path returns 200 with host info, empty containers, zeroed counts), lists once, budgets inspects at fleet size (5s each) for `health`/`started_at`/`uptime_seconds`/`restart_count` with graceful fallback, and reads `ReadHostInfo()` (nil → `host:null`). Response struct field order matches the contract exactly; `mem_trend` is `null` when <2 samples; `recent_errors.samples` are raw line texts (compact for an LLM) with `count:0`/`[]` for clean containers. Verified: `go build ./...` OK, `go vet ./...` clean, `go test ./handlers/` 38 passed (route wiring is the next task).
 
   - `type SnapshotHandler struct { dclient *docker.Client; version string; logh *LogHandler; stats *StatsHandler; mem *MemHistory }` and `func NewSnapshotHandler(d *docker.Client, version string, logh *LogHandler, sh *StatsHandler, mh *MemHistory) *SnapshotHandler`. Expose whatever accessor you need on `StatsHandler`/`StatsBuffer` to fetch the latest point per container (e.g. add `(*StatsBuffer).Latest(id string) (docker.ContainerMetrics, bool)` returning the last element).
   - `Get(w, r)`:
