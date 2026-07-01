@@ -40,7 +40,7 @@
 
   Verification: `go build ./...` succeeds; `go vet ./...` is clean. Run `go run .` locally is NOT required for this task (no Docker assumptions) — the build + vet gate is sufficient.
 
-- [ ] **Add unit tests in `backend/handlers/memhistory_test.go`.**
+- [x] **Add unit tests in `backend/handlers/memhistory_test.go`.** _(Done 2026-07-01: added 8 tests using `t.TempDir()` — interval-gate (1 sample from two calls 10s apart, 2 after a +90s call), empty-name ignore, ring eviction (retains exactly 1440, oldest 5 dropped), `Trend` nil for <2 samples, increasing series → positive slope with ≤20 endpoint-preserving downsampled points and first<last, persistence round-trip (reload matches counts/last sample and re-seeds the interval gate), atomic Save leaves no `.tmp`, and corrupt-file tolerance (no panic, starts empty, stays usable). `go test ./handlers/...` = 34 passed; `go vet ./handlers/...` clean.)_
 
   Cover, using a `t.TempDir()` for `DATA_DIR`:
   - `Observe` respects the 60 s gate: two `Observe` calls 10 s apart for the same name produce exactly one sample; a third at +90 s produces two.
