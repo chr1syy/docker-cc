@@ -154,7 +154,7 @@ Abridged response:
 {
   "checked_at": "2026-07-01T15:04:05Z",
   "docker": "connected",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "window": "1h",
   "host": { "load1": 0.42, "mem_total_bytes": 8319737856, "mem_used_percent": 61.3 },
   "counts": { "total": 11, "running": 10, "stopped": 1, "unhealthy": 0, "restarting": 0 },

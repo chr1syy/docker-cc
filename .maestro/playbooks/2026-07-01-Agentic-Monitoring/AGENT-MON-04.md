@@ -34,11 +34,16 @@
   - `curl -H "Authorization: Bearer t" .../api/agent/snapshot` → **HTTP 200** with valid JSON containing `"docker"` (`"disconnected"`), `"counts"`, and `"host"` (load + mem) fields.
   - `curl .../api/agent/snapshot` (no token) → **HTTP 401**. Server started and stopped cleanly.
 
-- [ ] **Bump the version to 0.7.0 across the repo.**
+- [x] **Bump the version to 0.7.0 across the repo.**
 
   Update the version wherever it is declared for a release (grep for `0.6.1`: at minimum `frontend/package.json`, and any `Version` default / VERSION references — do NOT change the CI `-ldflags` injection mechanism, only version strings/manifests). Update `CLAUDE.md`'s "Current version:" line to `0.7.0`. Do NOT create the git tag or push in this task (release is a human-triggered step below).
 
   Verification: `grep -rn "0.7.0" frontend/package.json CLAUDE.md` shows the bump; `grep -rn "0.6.1" .` returns no stale release-version references (ignore this playbook folder and changelog history).
+
+  **Done (2026-07-01):** Bumped 0.6.1 → 0.7.0 (minor, per new-functionality convention).
+  - Updated `frontend/package.json` (v3), `frontend/package-lock.json` (root + package "" entries), `AGENTS.md` "Current version:" line (`CLAUDE.md` is a symlink to `AGENTS.md`, so it reflects 0.7.0 automatically), and the example-response `version` field in `README.md:157`.
+  - Backend `main.go` `Version` default stays `"dev"` (injected at build via `-ldflags`) — unchanged per instruction to leave the ldflags mechanism alone.
+  - Verified: `grep -rn "0.7.0" frontend/package.json CLAUDE.md README.md AGENTS.md` shows all bumps; `grep -rn "0.6.1"` (excluding playbook/CHANGELOG) returns **zero** stale references. No git tag/push (human-triggered release step).
 
 ## Human-only verification (run after the playbook completes — NOT agent checkbox tasks)
 
