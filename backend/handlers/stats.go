@@ -33,6 +33,12 @@ func NewStatsHandler(d *docker.Client, mh *MemHistory) *StatsHandler {
 // 2 seconds and stores them in the ring buffer. This ensures history
 // accumulates from server start, independent of WebSocket clients.
 func (s *StatsHandler) collect() {
+	// A nil Docker client (e.g. in tests constructing a StatsHandler over a
+	// nil client) has nothing to collect — return immediately so the goroutine
+	// exits cleanly instead of panicking on every tick.
+	if s.dclient == nil {
+		return
+	}
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
