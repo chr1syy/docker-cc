@@ -22,12 +22,17 @@
   - `grep -n "shellcheck\|lint-scripts\|deploy"` returns **zero** matches — no shell-script lint job, no auto-deploy step. Deployment stays a manual human step.
   - `build-and-push` at `ci.yml:46` still `needs: [test-backend, test-frontend]`, so a failing test blocks the GHCR release.
 
-- [ ] **Confirm the snapshot endpoint is present in a built binary and the full backend test suite is green.**
+- [x] **Confirm the snapshot endpoint is present in a built binary and the full backend test suite is green.**
 
   - `export PATH=$PATH:/usr/local/go/bin && cd /home/chris/code/docker-cc/backend && go build -o /tmp/dcc-server . && go test ./...` — build and ALL tests pass (snapshot, memhistory, hostinfo, plus existing).
   - Sanity: start `/tmp/dcc-server` with `ADMIN_PASSWORD=x SESSION_SECRET=y API_TOKEN=t STATIC_DIR=/tmp` (no Docker needed for the disconnected path), then `curl -s -H "Authorization: Bearer t" localhost:8080/api/agent/snapshot` returns 200 JSON containing `"docker"` and `"counts"`; `curl -s localhost:8080/api/agent/snapshot` (no token) returns 401. Stop the server.
 
   Verification: both curl assertions hold; test suite exits 0.
+
+  **Done (2026-07-01):** Verified — all assertions hold.
+  - `go build -o /tmp/dcc-server .` succeeded; `go test ./...` passed **89 tests across 4 packages** (snapshot/memhistory/hostinfo + existing), exit 0.
+  - `curl -H "Authorization: Bearer t" .../api/agent/snapshot` → **HTTP 200** with valid JSON containing `"docker"` (`"disconnected"`), `"counts"`, and `"host"` (load + mem) fields.
+  - `curl .../api/agent/snapshot` (no token) → **HTTP 401**. Server started and stopped cleanly.
 
 - [ ] **Bump the version to 0.7.0 across the repo.**
 
