@@ -36,7 +36,9 @@
 
   Verification: `grep -n "agent/snapshot" /home/chris/code/docker-cc/AGENTS.md` shows the new rows.
 
-- [ ] **Add a "Agentic monitoring" section to `README.md` describing the snapshot endpoint and how the pipeline consumes it.**
+- [x] **Add a "Agentic monitoring" section to `README.md` describing the snapshot endpoint and how the pipeline consumes it.**
+
+  > **Done (2026-07-01).** Added an `## Agentic Monitoring` top-level section to `README.md` (line 143), placed after the existing "Agent / Programmatic Access" docs and before `## License`. It documents the endpoint path + bearer auth (`curl -H "Authorization: Bearer $API_TOKEN" .../api/agent/snapshot`), the `?window=` query param (default `1h`, clamped `[1m, 24h]`), the always-200 disconnected behavior, and an abridged JSON example built from the real `snapshotResponse`/`HostInfo`/`MemTrend` shapes. Noted that `mem_trend` is `null` until ≥2 long-horizon samples (~an hour of uptime) and that docker-cc only *exposes* this data — scheduling/judging/alerting/remediation live in a separate consumer (Maestro Cue pipeline). Also added a bullet for `/api/agent/snapshot` to the section's "Endpoints" list (line 124) linking to the new section. Section is ~30 lines. Verified: `grep -n "agent/snapshot" README.md` → 3 hits.
 
   Add a concise section documenting: the endpoint path + auth (`Authorization: Bearer $API_TOKEN`), an abridged example response, the `window` query param, and that memory-trend fields require ~an hour of uptime to be meaningful. Add one sentence noting that docker-cc only *exposes* this data — scheduling, health-judging, alerting, and any remediation are intended to live in a separate consumer (a Maestro Cue pipeline) that polls this endpoint, not inside docker-cc. If `README.md` has no such top-level anchor yet, place the section after the existing API/usage documentation. Keep it under ~40 lines.
 
