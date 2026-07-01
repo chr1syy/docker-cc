@@ -88,7 +88,9 @@ Notes: `health` is `"healthy"`/`"unhealthy"`/`"starting"`/`"none"`. `mem_trend` 
 
   Verification: `go build ./...` succeeds and `go vet ./...` is clean.
 
-- [ ] **Wire the route in `backend/main.go`.**
+- [x] **Wire the route in `backend/main.go`.**
+
+  Done. Added `snap := handlers.NewSnapshotHandler(dclient, Version, lh, sh, mh)` right after the `stath` constructor (reusing the existing `lh`, `sh`, and Phase 1's `mh`), and registered `r.Get("/agent/snapshot", snap.Get)` inside the protected `sm.AuthMiddleware` group, directly below `r.Get("/status", stath.Get)` — NOT under `RequireActions`. Verified: `go build ./...` OK, `go vet ./...` clean, full suite 85 passed. Smoke test (server started with an unreachable `DOCKER_HOST` so the disconnected path is exercised): `curl -H "Authorization: Bearer t" localhost:8080/api/agent/snapshot` returns HTTP 200 JSON with `"docker":"disconnected"`, populated `host` (load + mem from `/proc`), empty `containers`, and zeroed `counts`; the same request without the bearer token returns 401 (auth enforced).
 
   Next to the other handler constructors, add `snap := handlers.NewSnapshotHandler(dclient, Version, lh, sh, mh)` (reuse the existing `lh`, `sh`, and the `mh` from Phase 1). Inside the protected `r.Group` that uses `sm.AuthMiddleware` (the same group holding `/status`), register:
 

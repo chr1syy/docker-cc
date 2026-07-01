@@ -68,6 +68,8 @@ func main() {
     sh := handlers.NewStatsHandler(dclient, mh)
     // Aggregated status (agent-friendly health endpoint)
     stath := handlers.NewStatusHandler(dclient, Version, lh)
+    // Unified agent snapshot (single LLM-friendly fleet health document)
+    snap := handlers.NewSnapshotHandler(dclient, Version, lh, sh, mh)
 
     // If ADMIN_PASSWORD is set (plaintext), hash it and set ADMIN_PASSWORD_HASH
     // so the login handler can use it. This avoids bcrypt $ escaping issues in Docker Compose.
@@ -137,6 +139,7 @@ func main() {
                 r.Get("/containers/{id}/logs/digest", lh.Digest)
                 r.Get("/logs/digest", lh.BulkDigest)
                 r.Get("/status", stath.Get)
+                r.Get("/agent/snapshot", snap.Get)
                 r.Get("/stats/stream", sh.WS)
                 r.Get("/stats/history", sh.History)
                 r.Get("/containers/{id}/stats", sh.OneShot)
