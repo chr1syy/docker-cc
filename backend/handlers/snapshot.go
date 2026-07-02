@@ -41,16 +41,28 @@ type snapshotCounts struct {
 	Stopped    int `json:"stopped"`
 	Unhealthy  int `json:"unhealthy"`
 	Restarting int `json:"restarting"`
+	// ScanFailures is the number of running containers whose recent-error log
+	// scan failed. A non-zero value means part of the fleet's health is
+	// unknown (not clean); monitoring should treat it as a degraded signal.
+	ScanFailures int `json:"scan_failures"`
 }
 
 // snapshotErrors is the recent_errors block per container. Samples are the raw
 // log line texts (not structured DigestLine objects) to stay compact and
 // readable for an LLM. count is 0 with an empty samples slice for clean
 // containers.
+//
+// ScanOK distinguishes a genuinely clean container (scan ran, found nothing)
+// from one whose log scan failed. A failed scan must never read as clean:
+// count:0 with scan_ok:false means "unknown, do not treat as healthy", and
+// scan_error carries the reason. Downstream monitoring keys off scan_ok /
+// counts.scan_failures so it never acts on a falsely-healthy status.
 type snapshotErrors struct {
-	Count   int      `json:"count"`
-	LastAt  string   `json:"last_at,omitempty"`
-	Samples []string `json:"samples"`
+	Count     int      `json:"count"`
+	LastAt    string   `json:"last_at,omitempty"`
+	Samples   []string `json:"samples"`
+	ScanOK    bool     `json:"scan_ok"`
+	ScanError string   `json:"scan_error,omitempty"`
 }
 
 // snapshotContainer field order matches the response contract in the playbook.
@@ -142,7 +154,7 @@ func (h *SnapshotHandler) Get(w http.ResponseWriter, r *http.Request) {
 				State:        c.State,
 				Status:       c.Status,
 				Health:       "none",
-				RecentErrors: snapshotErrors{Samples: []string{}},
+				RecentErrors: snapshotErrors{Samples: []string{}, ScanOK: true},
 			}
 
 			switch c.State {
@@ -214,14 +226,8 @@ func (h *SnapshotHandler) Get(w http.ResponseWriter, r *http.Request) {
 			}, 5)
 			scanCancel()
 
-			byName := make(map[string]snapshotErrors, len(digests))
-			for _, d := range digests {
-				se := snapshotErrors{Count: d.ErrorCount, LastAt: d.LastErrorAt, Samples: []string{}}
-				for _, s := range d.Samples {
-					se.Samples = append(se.Samples, s.Text)
-				}
-				byName[d.Container] = se
-			}
+			byName, scanFailures := mapDigestsToErrors(digests)
+			counts.ScanFailures += scanFailures
 			for i := range containersOut {
 				if se, ok := byName[containersOut[i].Name]; ok {
 					containersOut[i].RecentErrors = se
@@ -241,4 +247,30 @@ func (h *SnapshotHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// mapDigestsToErrors converts the per-container log-scan digests into the
+// snapshot recent_errors block keyed by container name, and reports how many
+// scans failed.
+//
+// A failed scan (ScanError set) must never be reported as a clean container:
+// it is flagged scan_ok:false with the error text in scan_error, and counted
+// toward the returned scanFailures total (surfaced as counts.scan_failures).
+// This is the invariant downstream monitoring relies on — a scan that could
+// not run is "unknown", not "healthy".
+func mapDigestsToErrors(digests []containerDigest) (byName map[string]snapshotErrors, scanFailures int) {
+	byName = make(map[string]snapshotErrors, len(digests))
+	for _, d := range digests {
+		se := snapshotErrors{Count: d.ErrorCount, LastAt: d.LastErrorAt, Samples: []string{}, ScanOK: true}
+		if d.ScanError != "" {
+			se.ScanOK = false
+			se.ScanError = d.ScanError
+			scanFailures++
+		}
+		for _, s := range d.Samples {
+			se.Samples = append(se.Samples, s.Text)
+		}
+		byName[d.Container] = se
+	}
+	return byName, scanFailures
 }

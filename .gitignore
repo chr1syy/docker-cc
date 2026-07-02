@@ -6,6 +6,10 @@ frontend/build/
 # Go
 backend/server
 
+# Runtime data (2FA secrets, mem_history.json, etc.) — never commit
+backend/data/
+data/
+
 # Environment
 app.env
 .env
